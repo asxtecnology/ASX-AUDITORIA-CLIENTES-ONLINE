@@ -153,9 +153,9 @@ export async function getMonitoringRuns(limit = 20) {
 
 export async function getLatestMonitoringRun() {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.startedAt)).limit(1);
-  return result[0];
+  return result[0] ?? null;
 }
 
 // ─── Price Snapshots ──────────────────────────────────────────────────────────
@@ -246,15 +246,25 @@ export async function getViolationTrend(days = 30) {
   if (!db) return [];
   const since = new Date();
   since.setDate(since.getDate() - days);
-  return db
-    .select({
-      date: sql<string>`DATE(${violations.detectedAt})`.as("date"),
-      count: count(),
-    })
-    .from(violations)
-    .where(gte(violations.detectedAt, since))
-    .groupBy(sql`DATE(${violations.detectedAt})`)
-    .orderBy(sql`DATE(${violations.detectedAt})`);
+  try {
+    // Check if table has any rows first to avoid SQL errors on empty table
+    const countResult = await db.select({ count: count() }).from(violations);
+    if ((countResult[0]?.count ?? 0) === 0) return [];
+
+    const rows = await db.execute(
+      sql`SELECT DATE(detected_at) as date, COUNT(*) as cnt
+          FROM violations
+          WHERE detected_at >= ${since}
+          GROUP BY DATE(detected_at)
+          ORDER BY DATE(detected_at)`
+    );
+    const results = (rows as unknown as [Array<{ date: string; cnt: number }>])[0];
+    if (!Array.isArray(results)) return [];
+    return results.map((r) => ({ date: String(r.date), count: Number(r.cnt) }));
+  } catch (e) {
+    console.error("[DB] getViolationTrend error:", e);
+    return [];
+  }
 }
 
 // ─── Alert Configs ────────────────────────────────────────────────────────────
@@ -311,4 +321,84 @@ export async function initDefaultSettings() {
     const existing = await getSetting(s.key);
     if (!existing) await upsertSetting(s.key, s.value, s.description ?? undefined);
   }
+}
+
+// ─── v2: Clientes ─────────────────────────────────────────────────────────────
+import {
+  clientes,
+  vendedores,
+  historicoPrecosTable,
+  InsertCliente,
+} from "../drizzle/schema";
+
+export async function getClientes() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(clientes).orderBy(clientes.nome);
+}
+
+export async function getClienteById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(clientes).where(eq(clientes.id, id)).limit(1);
+  return result[0];
+}
+
+export async function upsertCliente(data: InsertCliente) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(clientes).values(data).onDuplicateKeyUpdate({
+    set: { nome: data.nome, lojaML: data.lojaML, linkLoja: data.linkLoja, status: data.status, updatedAt: new Date() },
+  });
+}
+
+export async function deleteCliente(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(clientes).where(eq(clientes.id, id));
+}
+
+// ─── v2: Vendedores ───────────────────────────────────────────────────────────
+export async function getVendedores(opts?: { limit?: number; offset?: number; orderBy?: "total_violacoes" | "total_anuncios" }) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const orderCol = opts?.orderBy === "total_anuncios" ? vendedores.totalAnuncios : vendedores.totalViolacoes;
+  const [items, totalRows] = await Promise.all([
+    db.select({ v: vendedores, c: clientes })
+      .from(vendedores)
+      .leftJoin(clientes, eq(vendedores.clienteId, clientes.id))
+      .orderBy(desc(orderCol))
+      .limit(opts?.limit ?? 50)
+      .offset(opts?.offset ?? 0),
+    db.select({ count: count() }).from(vendedores),
+  ]);
+  return { items, total: totalRows[0]?.count ?? 0 };
+}
+
+// ─── v2: Histórico de Preços ──────────────────────────────────────────────────
+export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?: string; days?: number }) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [];
+  if (opts?.codigoAsx) conditions.push(eq(historicoPrecosTable.codigoAsx, opts.codigoAsx));
+  if (opts?.vendedor) conditions.push(like(historicoPrecosTable.vendedor, `%${opts.vendedor}%`));
+  if (opts?.days) {
+    const since = new Date();
+    since.setDate(since.getDate() - opts.days);
+    conditions.push(gte(historicoPrecosTable.createdAt, since));
+  }
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.createdAt)).limit(200);
+}
+
+// ─── v2: Violações por Cliente ────────────────────────────────────────────────
+export async function getViolationsByCliente(clienteId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ v: violations, p: products })
+    .from(violations)
+    .leftJoin(products, eq(violations.productId, products.id))
+    .where(eq(violations.clienteId, clienteId))
+    .orderBy(desc(violations.detectedAt))
+    .limit(limit);
 }

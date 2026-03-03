@@ -34,3 +34,53 @@
 - [x] Escrever testes vitest (11 testes passando)
 - [x] Exportação CSV de violações
 - [x] Checkpoint final e entrega
+
+## v2.0 — Melhorias (COMANDO_MELHORIA_MANUS.md)
+
+### Fase 1: Banco de Dados
+- [ ] Nova tabela: clientes (seller_id, nome, loja_ml, link_loja, status)
+- [ ] Nova tabela: historico_precos (codigo_asx, plataforma, vendedor, item_id, preco, data)
+- [ ] Nova tabela: vendedores (plataforma, vendedor_id, nome, cliente_id, total_violacoes)
+- [ ] Adicionar colunas em anuncios: confianca, metodo_match, cliente_id, thumbnail
+- [ ] Rodar db:push
+
+### Fase 2: Scraper v2 + Seed Clientes
+- [ ] Extrair seller_id da LS DISTRIBUIDORA via API ML (item MLB5770989382)
+- [ ] Seed dos 8 clientes no banco
+- [ ] Refazer mlScraper: busca por seller_id + busca geral
+- [ ] Sistema de confiança 0-100 (EAN=100, código=95, linha+bulbo=85, marca+bulbo=70, só marca=50)
+- [ ] Deduplicação por item_id
+- [ ] Retry com backoff exponencial (429: 5s, 10s, 20s)
+- [ ] Delay 1.5s entre requests
+
+### Fase 3: Aba Clientes Monitorados
+- [ ] Cards por cliente (nome, produtos ASX, violações, última verificação)
+- [ ] Botão "Verificar Agora" individual por cliente
+- [ ] Modal de detalhamento: lista anúncios do cliente vs preço mínimo
+- [ ] Indicadores visuais: verde/amarelo/vermelho
+- [ ] Formulário adicionar/editar/remover cliente
+
+### Fase 4: Aba Vendedores
+- [ ] Ranking top 10 violadores (gráfico barras horizontal)
+- [ ] Tabela: total violações, produtos violados, primeira/última violação
+- [ ] Badge: cliente cadastrado vs desconhecido
+
+### Fase 5: Melhorias nas abas existentes
+- [ ] Dashboard: card "Clientes Monitorados", pizza "Violações por Cliente", card "Vendedores Não Cadastrados"
+- [ ] Violações: coluna Cliente, coluna Confiança (barra visual), exportar CSV funcional, filtros por cliente/categoria/data
+- [ ] Catálogo: coluna Categoria, coluna Linha (PREMIUM/PLUS/ECO), filtros
+- [ ] Histórico: gráfico evolução violações, gráfico barras por execução
+- [ ] Configurações: slider confiança mínima, checkboxes plataformas, campo delay
+
+### Fase 6: Modal Detalhe Produto + Testes
+- [ ] Modal ao clicar em código ASX: info produto + gráfico histórico preços + lista anúncios
+- [ ] Testes vitest v2.0 (sistema de confiança, deduplicação, categorização)
+
+## Fixes urgentes aplicados (FIX_ERROS_MANUS)
+- [x] Schema verificado: violations.detected_at existe com defaultNow()
+- [x] Backend: monitoring.latest retorna null (nunca undefined) via ?? null
+- [x] Backend: getViolationTrend verifica count antes de executar SQL raw
+- [x] Backend: todas as rotas retornam array vazio ou null-safe
+- [x] Frontend: Dashboard já tinha ?? em todos os campos (stats?.open ?? 0, etc.)
+- [x] Servidor reiniciado, cache Vite limpo
+- [x] 11 testes vitest passando

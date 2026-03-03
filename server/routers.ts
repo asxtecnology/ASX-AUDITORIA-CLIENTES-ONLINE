@@ -24,13 +24,28 @@ import {
   upsertProduct,
   upsertSetting,
   getSnapshotsByProduct,
+  // v2 helpers
+  getClientes,
+  getClienteById,
+  upsertCliente,
+  deleteCliente,
+  getVendedores,
+  getViolationsByCliente,
+  getHistoricoPrecos,
 } from "./db";
-import { runMonitoring } from "./mlScraper";
+import { runScraper, runMonitoring } from "./mlScraper";
 
 // ─── Products Router ──────────────────────────────────────────────────────────
 const productsRouter = router({
   list: protectedProcedure
-    .input(z.object({ search: z.string().optional(), ativo: z.boolean().optional(), limit: z.number().default(50), offset: z.number().default(0) }))
+    .input(z.object({
+      search: z.string().optional(),
+      ativo: z.boolean().optional(),
+      categoria: z.string().optional(),
+      linha: z.enum(["PREMIUM", "PLUS", "ECO"]).optional(),
+      limit: z.number().default(50),
+      offset: z.number().default(0),
+    }))
     .query(({ input }) => getProducts(input)),
 
   get: protectedProcedure
@@ -96,14 +111,19 @@ const productsRouter = router({
 // ─── Monitoring Router ────────────────────────────────────────────────────────
 const monitoringRouter = router({
   runNow: protectedProcedure
-    .mutation(() => runMonitoring("manual")),
+    .input(z.object({ clienteId: z.number().optional() }).optional())
+    .mutation(({ input }) => runScraper({ triggeredBy: "manual", clienteId: input?.clienteId })),
 
   history: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }))
     .query(({ input }) => getMonitoringRuns(input.limit)),
 
   latest: protectedProcedure
-    .query(() => getLatestMonitoringRun()),
+    .query(async () => {
+      const run = await getLatestMonitoringRun();
+      // tRPC cannot return undefined — return null-safe default when no run exists
+      return run ?? null;
+    }),
 
   stats: protectedProcedure
     .query(() => getViolationStats()),
@@ -120,6 +140,9 @@ const violationsRouter = router({
       status: z.enum(["open", "notified", "resolved"]).optional(),
       productId: z.number().optional(),
       sellerId: z.string().optional(),
+      clienteId: z.number().optional(),
+      categoria: z.string().optional(),
+      confiancaMin: z.number().optional(),
       dateFrom: z.date().optional(),
       dateTo: z.date().optional(),
       limit: z.number().default(50),
@@ -130,6 +153,58 @@ const violationsRouter = router({
   updateStatus: protectedProcedure
     .input(z.object({ id: z.number(), status: z.enum(["open", "notified", "resolved"]) }))
     .mutation(({ input }) => updateViolationStatus(input.id, input.status)),
+
+  byCliente: protectedProcedure
+    .input(z.object({ clienteId: z.number(), limit: z.number().default(20) }))
+    .query(({ input }) => getViolationsByCliente(input.clienteId, input.limit)),
+});
+
+// ─── Clientes Router ──────────────────────────────────────────────────────────
+const clientesRouter = router({
+  list: protectedProcedure
+    .query(() => getClientes()),
+
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(({ input }) => getClienteById(input.id)),
+
+  upsert: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      nome: z.string().min(1),
+      sellerId: z.string().min(1),
+      lojaML: z.string().optional(),
+      linkLoja: z.string().optional(),
+      status: z.enum(["ativo", "inativo"]).default("ativo"),
+    }))
+    .mutation(({ input }) => upsertCliente(input)),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ input }) => deleteCliente(input.id)),
+
+  runCheck: protectedProcedure
+    .input(z.object({ clienteId: z.number() }))
+    .mutation(({ input }) => runScraper({ triggeredBy: "manual", clienteId: input.clienteId })),
+});
+
+// ─── Vendedores Router ────────────────────────────────────────────────────────
+const vendedoresRouter = router({
+  list: protectedProcedure
+    .input(z.object({
+      limit: z.number().default(50),
+      offset: z.number().default(0),
+      orderBy: z.enum(["total_violacoes", "total_anuncios"]).default("total_violacoes"),
+    }))
+    .query(({ input }) => getVendedores(input)),
+
+  historico: protectedProcedure
+    .input(z.object({
+      codigoAsx: z.string().optional(),
+      vendedor: z.string().optional(),
+      days: z.number().default(30),
+    }))
+    .query(({ input }) => getHistoricoPrecos(input)),
 });
 
 // ─── Alerts Router ────────────────────────────────────────────────────────────
@@ -177,6 +252,8 @@ export const appRouter = router({
   products: productsRouter,
   monitoring: monitoringRouter,
   violations: violationsRouter,
+  clientes: clientesRouter,
+  vendedores: vendedoresRouter,
   alerts: alertsRouter,
   settings: settingsRouter,
 });

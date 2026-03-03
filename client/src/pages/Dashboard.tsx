@@ -49,7 +49,7 @@ export default function Dashboard() {
   const runNow = trpc.monitoring.runNow.useMutation({
     onSuccess: (data) => {
       setIsRunning(false);
-      toast.success(`Monitoramento concluído! ${data.violationsFound} violação(ões) detectada(s).`);
+      toast.success(`Monitoramento concluído! ${data.violations} violação(ões) detectada(s).`);
       refetchStats();
       refetchRun();
     },
