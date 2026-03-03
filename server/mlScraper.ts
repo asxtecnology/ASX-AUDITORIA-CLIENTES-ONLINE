@@ -226,15 +226,24 @@ export function matchProduct(
 }
 
 // ─── Scraper de Loja ML (HTML) ────────────────────────────────────────────────
+// Builds the correct ML store URL:
+//   - Numeric sellerId → _CustId_{id}  (e.g. _CustId_1917431909)
+//   - Text nickname   → _Loja_{nick}   (e.g. _Loja_ls-distribuidora)
+function buildStoreUrl(sellerIdOrNick: string, query: string, offset: number): string {
+  const fromParam = offset > 0 ? `_Desde_${offset + 1}` : "";
+  const isNumeric = /^\d+$/.test(sellerIdOrNick);
+  if (isNumeric) {
+    return `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_CustId_${sellerIdOrNick}_NoIndex_True${fromParam}`;
+  }
+  return `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_Loja_${sellerIdOrNick}_NoIndex_True${fromParam}`;
+}
+
 async function scrapeStorePage(
   nickname: string,
   query: string = "ASX",
   offset: number = 0
 ): Promise<ScrapedProduct[]> {
-  // ML store search URL: lista.mercadolivre.com.br/{query}_Loja_{nickname}_NoIndex_True
-  // With pagination: _Desde_{offset+1}
-  const fromParam = offset > 0 ? `_Desde_${offset + 1}` : "";
-  const url = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_Loja_${nickname}_NoIndex_True${fromParam}`;
+  const url = buildStoreUrl(nickname, query, offset);
 
   const html = await fetchHtml(url);
   if (!html) return [];
@@ -337,22 +346,28 @@ export async function runScraper(
           )
       : await db.select().from(clientes).where(eq(clientes.status, "ativo"));
 
-    // ── FASE 1: Busca cirúrgica por loja do cliente ───────────────────────────
+    // ── FASE 1: Busca cirúrgica por loja do cliente ───────────────────────────────────────
     for (const cliente of clientesList) {
-      if (!cliente.lojaML) {
-        console.warn(`[Scraper v3] Cliente ${cliente.nome} sem lojaML (nickname ML), pulando`);
+      // Prefer numeric sellerId (_CustId_) over lojaML nickname (_Loja_)
+      // _CustId_ works for ALL sellers; _Loja_ only works for official stores
+      const searchKey = cliente.sellerId && /^\d+$/.test(cliente.sellerId)
+        ? cliente.sellerId
+        : cliente.lojaML;
+
+      if (!searchKey) {
+        console.warn(`[Scraper v3] Cliente ${cliente.nome} sem sellerId nem lojaML, pulando`);
         continue;
       }
 
       console.log(
-        `[Scraper v3] Buscando anúncios de ${cliente.nome} (loja: ${cliente.lojaML})`
+        `[Scraper v3] Buscando anúncios de ${cliente.nome} (searchKey: ${searchKey})`
       );
       let clienteFound = 0;
       let clienteViolations = 0;
 
       // Paginar resultados da loja (48 por página)
       for (let offset = 0; offset < 300; offset += 48) {
-        const items = await scrapeStorePage(cliente.lojaML!, "ASX", offset);
+        const items = await scrapeStorePage(searchKey, "ASX", offset);
         if (items.length === 0) break;
 
         for (const item of items) {

@@ -1,0 +1,58 @@
+{
+  "query": "\nDELETE FROM clientes;\n\nINSERT INTO clientes (nome, seller_id, loja_ml, status, total_produtos, total_violacoes, createdAt, updatedAt) VALUES\n('LS DISTRIBUIDORA',        '3',          'ls-distribuidora',         'ativo', 0, 0, NOW(), NOW()),\n('LIDER SOM',               '1917431909', 'lider-som',                'ativo', 0, 0, NOW(), NOW()),\n('CSR PARTS',               '1229968748', 'csr-parts',                'ativo', 0, 0, NOW(), NOW()),\n('BERTO PARTS',             '255978756',  'berto-parts',              'ativo', 0, 0, NOW(), NOW()),\n('EXTREME AUDIO',           '186722996',  'extreme-audio',            'ativo', 0, 0, NOW(), NOW()),\n('ACESSORIOS P/ CAMINHAO',  '1712320386', 'acessorios-para-caminhao', 'ativo', 0, 0, NOW(), NOW()),\n('IMPERIAL LEDS',           '1116226805', 'imperial-led',             'ativo', 0, 0, NOW(), NOW()),\n('COMBAT SOM',              '287896166',  'combat-som',               'ativo', 0, 0, NOW(), NOW());\n\nSELECT id, nome, seller_id, loja_ml FROM clientes ORDER BY id;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute \nDELETE FROM clientes;\n\nINSERT INTO clientes (nome, seller_id, loja_ml, status, total_produtos, total_violacoes, createdAt, updatedAt) VALUES\n('LS DISTRIBUIDORA',        '3',          'ls-distribuidora',         'ativo', 0, 0, NOW(), NOW()),\n('LIDER SOM',               '1917431909', 'lider-som',                'ativo', 0, 0, NOW(), NOW()),\n('CSR PARTS',               '1229968748', 'csr-parts',                'ativo', 0, 0, NOW(), NOW()),\n('BERTO PARTS',             '255978756',  'berto-parts',              'ativo', 0, 0, NOW(), NOW()),\n('EXTREME AUDIO',           '186722996',  'extreme-audio',            'ativo', 0, 0, NOW(), NOW()),\n('ACESSORIOS P/ CAMINHAO',  '1712320386', 'acessorios-para-caminhao', 'ativo', 0, 0, NOW(), NOW()),\n('IMPERIAL LEDS',           '1116226805', 'imperial-led',             'ativo', 0, 0, NOW(), NOW()),\n('COMBAT SOM',              '287896166',  'combat-som',               'ativo', 0, 0, NOW(), NOW());\n\nSELECT id, nome, seller_id, loja_ml FROM clientes ORDER BY id;\n",
+  "rows": [
+    {
+      "id": "30001",
+      "nome": "LS DISTRIBUIDORA",
+      "seller_id": "3",
+      "loja_ml": "ls-distribuidora"
+    },
+    {
+      "id": "30002",
+      "nome": "LIDER SOM",
+      "seller_id": "1917431909",
+      "loja_ml": "lider-som"
+    },
+    {
+      "id": "30003",
+      "nome": "CSR PARTS",
+      "seller_id": "1229968748",
+      "loja_ml": "csr-parts"
+    },
+    {
+      "id": "30004",
+      "nome": "BERTO PARTS",
+      "seller_id": "255978756",
+      "loja_ml": "berto-parts"
+    },
+    {
+      "id": "30005",
+      "nome": "EXTREME AUDIO",
+      "seller_id": "186722996",
+      "loja_ml": "extreme-audio"
+    },
+    {
+      "id": "30006",
+      "nome": "ACESSORIOS P/ CAMINHAO",
+      "seller_id": "1712320386",
+      "loja_ml": "acessorios-para-caminhao"
+    },
+    {
+      "id": "30007",
+      "nome": "IMPERIAL LEDS",
+      "seller_id": "1116226805",
+      "loja_ml": "imperial-led"
+    },
+    {
+      "id": "30008",
+      "nome": "COMBAT SOM",
+      "seller_id": "287896166",
+      "loja_ml": "combat-som"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tseller_id\tloja_ml\n30001\tLS DISTRIBUIDORA\t3\tls-distribuidora\n30002\tLIDER SOM\t1917431909\tlider-som\n30003\tCSR PARTS\t1229968748\tcsr-parts\n30004\tBERTO PARTS\t255978756\tberto-parts\n30005\tEXTREME AUDIO\t186722996\textreme-audio\n30006\tACESSORIOS P/ CAMINHAO\t1712320386\tacessorios-para-caminhao\n30007\tIMPERIAL LEDS\t1116226805\timperial-led\n30008\tCOMBAT SOM\t287896166\tcombat-som\n",
+  "stderr": "",
+  "execution_time_ms": 84
+}

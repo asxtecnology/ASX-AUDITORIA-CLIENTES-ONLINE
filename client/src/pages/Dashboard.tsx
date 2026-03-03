@@ -16,6 +16,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Cell,
 } from "recharts";
 
 function formatCurrency(value: string | number) {
@@ -157,7 +158,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {kpis.map((kpi) => (
           <Card key={kpi.title} className={`border ${kpi.border} bg-card`}>
             <CardContent className="p-4">
@@ -235,13 +236,9 @@ export default function Dashboard() {
                   contentStyle={{ background: "oklch(0.17 0.015 250)", border: "1px solid oklch(0.25 0.015 250)", borderRadius: "8px", color: "oklch(0.95 0.01 250)" }}
                 />
                 <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]}>
-                  {[
-                    { fill: "#f97316" },
-                    { fill: "#3b82f6" },
-                    { fill: "#22c55e" },
-                  ].map((entry, index) => (
-                    <rect key={index} fill={entry.fill} />
-                  ))}
+                  <Cell fill="#f97316" />
+                  <Cell fill="#3b82f6" />
+                  <Cell fill="#22c55e" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

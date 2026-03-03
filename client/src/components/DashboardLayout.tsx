@@ -264,7 +264,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-6 min-h-screen overflow-y-auto">{children}</main>
       </SidebarInset>
     </>
   );
