@@ -42,7 +42,7 @@ const SCRAPER_HEADERS = {
   Connection: "keep-alive",
 };
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// -- Tipos --
 interface ScrapedProduct {
   mlbId: string;
   title: string;
@@ -74,7 +74,7 @@ type CatalogItem = {
   precoMinimo: string;
 };
 
-// ─── Utilitários ─────────────────────────────────────────────────────────────
+// -- Utilitários --
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -105,7 +105,7 @@ async function fetchHtml(url: string, retries = 0): Promise<string | null> {
   }
 }
 
-// ─── Categorização de produtos ────────────────────────────────────────────────
+// -- Categorização de produtos --
 export function categorizarProduto(
   descricao: string,
   precoCusto: number
@@ -130,7 +130,7 @@ export function categorizarProduto(
   return { categoria, linha };
 }
 
-// ─── Sistema de Confiança ─────────────────────────────────────────────────────
+// -- Sistema de Confiança --
 const CONNECTOR_PATTERNS = [
   "H1", "H3", "H4", "H7", "H8", "H9", "H11", "H13", "H15", "H16", "H27",
   "HB3", "HB4", "T10", "T5", "P21W", "T15", "W16W", "D1S", "D2S", "D3S",
@@ -225,7 +225,7 @@ export function matchProduct(
   return null;
 }
 
-// ─── Scraper de Loja ML (HTML) ────────────────────────────────────────────────
+// -- Scraper de Loja ML (HTML) --
 // Builds the correct ML store URL:
 //   - Numeric sellerId → _CustId_{id}  (e.g. _CustId_1917431909)
 //   - Text nickname   → _Loja_{nick}   (e.g. _Loja_ls-distribuidora)
@@ -293,7 +293,7 @@ async function scrapeStorePage(
   return products;
 }
 
-// ─── Scraper Principal ────────────────────────────────────────────────────────
+// -- Scraper Principal --
 export async function runScraper(
   options: ScrapeOptions = {}
 ): Promise<{ runId: number; found: number; violations: number }> {
@@ -346,7 +346,7 @@ export async function runScraper(
           )
       : await db.select().from(clientes).where(eq(clientes.status, "ativo"));
 
-    // ── FASE 1: Busca cirúrgica por loja do cliente ───────────────────────────────────────
+    // -- FASE 1: Busca cirúrgica por loja do cliente --
     for (const cliente of clientesList) {
       // Prefer numeric sellerId (_CustId_) over lojaML nickname (_Loja_)
       // _CustId_ works for ALL sellers; _Loja_ only works for official stores
@@ -490,7 +490,7 @@ export async function runScraper(
       );
     }
 
-    // ── FASE 2: Busca geral por código ASX (vendedores não cadastrados) ────────
+    // -- FASE 2: Busca geral por código ASX (vendedores não cadastrados) --
     if (!options.clienteId) {
       console.log("[Scraper v3] Fase 2: busca geral por código ASX...");
       const topProducts = catalog.slice(0, 15);
@@ -626,7 +626,7 @@ export async function runScraper(
   }
 }
 
-// ─── Compatibilidade com código legado ───────────────────────────────────────
+// -- Compatibilidade com código legado --
 export async function runMonitoring(
   triggeredBy: "scheduled" | "manual" = "scheduled"
 ) {
@@ -639,7 +639,7 @@ export async function runMonitoring(
   };
 }
 
-// ─── Agendador (cron diário às 14h) ──────────────────────────────────────────
+// -- Agendador (cron diário às 14h) --
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function startScheduler() {
