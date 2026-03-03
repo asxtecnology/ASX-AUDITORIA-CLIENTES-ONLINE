@@ -84,3 +84,11 @@
 - [x] Frontend: Dashboard já tinha ?? em todos os campos (stats?.open ?? 0, etc.)
 - [x] Servidor reiniciado, cache Vite limpo
 - [x] 11 testes vitest passando
+
+## Fix: Scraper não detecta violações reais (LS Distribuidora)
+- [ ] Buscar seller_id numérico real da LS Distribuidora via API ML
+- [ ] Atualizar seller_id no banco (de slug para número)
+- [ ] Corrigir scraper: validar que seller_id é numérico antes de buscar
+- [ ] Corrigir lógica de comparação preço anunciado vs preço mínimo
+- [ ] Corrigir matching de produtos: buscar por keywords mais amplas (não só "ASX")
+- [ ] Testar e confirmar violação detectada para LS Distribuidora

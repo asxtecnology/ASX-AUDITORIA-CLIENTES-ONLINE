@@ -1,0 +1,58 @@
+{
+  "query": "\nUPDATE clientes SET loja_ml = 'ls-distribuidora' WHERE nome LIKE '%LS DISTRIBUIDORA%' OR nome LIKE '%LS Distribuidora%';\nUPDATE clientes SET loja_ml = 'lider-som' WHERE nome LIKE '%LIDER SOM%' OR nome LIKE '%Lider Som%';\nSELECT id, nome, seller_id, loja_ml FROM clientes ORDER BY id;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute \nUPDATE clientes SET loja_ml = 'ls-distribuidora' WHERE nome LIKE '%LS DISTRIBUIDORA%' OR nome LIKE '%LS Distribuidora%';\nUPDATE clientes SET loja_ml = 'lider-som' WHERE nome LIKE '%LIDER SOM%' OR nome LIKE '%Lider Som%';\nSELECT id, nome, seller_id, loja_ml FROM clientes ORDER BY id;\n",
+  "rows": [
+    {
+      "id": "1",
+      "nome": "LS DISTRIBUIDORA",
+      "seller_id": "ls-distribuidora-63576",
+      "loja_ml": "ls-distribuidora"
+    },
+    {
+      "id": "2",
+      "nome": "LIDER SOM",
+      "seller_id": "1917431909",
+      "loja_ml": "lider-som"
+    },
+    {
+      "id": "3",
+      "nome": "CSRPARTS",
+      "seller_id": "1229968748",
+      "loja_ml": "csrparts"
+    },
+    {
+      "id": "4",
+      "nome": "BERTO PARTS",
+      "seller_id": "255978756",
+      "loja_ml": "NULL"
+    },
+    {
+      "id": "5",
+      "nome": "EXTREME AUDIO",
+      "seller_id": "186722996",
+      "loja_ml": "extremesom"
+    },
+    {
+      "id": "6",
+      "nome": "ACESSORIOS PARA CAMINHAO",
+      "seller_id": "1712320386",
+      "loja_ml": "NULL"
+    },
+    {
+      "id": "7",
+      "nome": "IMPERIAL LEDS",
+      "seller_id": "1116226805",
+      "loja_ml": "imperialled4886"
+    },
+    {
+      "id": "8",
+      "nome": "COMBATSOM",
+      "seller_id": "287896166",
+      "loja_ml": "combatsom"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tseller_id\tloja_ml\n1\tLS DISTRIBUIDORA\tls-distribuidora-63576\tls-distribuidora\n2\tLIDER SOM\t1917431909\tlider-som\n3\tCSRPARTS\t1229968748\tcsrparts\n4\tBERTO PARTS\t255978756\tNULL\n5\tEXTREME AUDIO\t186722996\textremesom\n6\tACESSORIOS PARA CAMINHAO\t1712320386\tNULL\n7\tIMPERIAL LEDS\t1116226805\timperialled4886\n8\tCOMBATSOM\t287896166\tcombatsom\n",
+  "stderr": "",
+  "execution_time_ms": 83
+}

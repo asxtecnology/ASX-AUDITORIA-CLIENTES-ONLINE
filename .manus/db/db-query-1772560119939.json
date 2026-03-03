@@ -1,0 +1,108 @@
+{
+  "query": "SHOW COLUMNS FROM clientes; SELECT id, nome, seller_id FROM clientes;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute SHOW COLUMNS FROM clientes; SELECT id, nome, seller_id FROM clientes;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "nome",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "seller_id",
+      "Type": "varchar(64)",
+      "Null": "NO",
+      "Key": "UNI",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "loja_ml",
+      "Type": "varchar(255)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "link_loja",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "status",
+      "Type": "enum('ativo','inativo')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "ativo",
+      "Extra": ""
+    },
+    {
+      "Field": "total_produtos",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "total_violacoes",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "ultima_verificacao",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [
+    "id\tnome\tseller_id",
+    "1\tLS DISTRIBUIDORA\tls-distribuidora-63576",
+    "2\tLIDER SOM\t1917431909",
+    "3\tCSRPARTS\t1229968748",
+    "4\tBERTO PARTS\t255978756",
+    "5\tEXTREME AUDIO\t186722996",
+    "6\tACESSORIOS PARA CAMINHAO\t1712320386",
+    "7\tIMPERIAL LEDS\t1116226805",
+    "8\tCOMBATSOM\t287896166"
+  ],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nnome\tvarchar(255)\tNO\t\tNULL\t\nseller_id\tvarchar(64)\tNO\tUNI\tNULL\t\nloja_ml\tvarchar(255)\tYES\t\tNULL\t\nlink_loja\ttext\tYES\t\tNULL\t\nstatus\tenum('ativo','inativo')\tNO\t\tativo\t\ntotal_produtos\tint\tYES\t\t0\t\ntotal_violacoes\tint\tYES\t\t0\t\nultima_verificacao\ttimestamp\tYES\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\nid\tnome\tseller_id\n1\tLS DISTRIBUIDORA\tls-distribuidora-63576\n2\tLIDER SOM\t1917431909\n3\tCSRPARTS\t1229968748\n4\tBERTO PARTS\t255978756\n5\tEXTREME AUDIO\t186722996\n6\tACESSORIOS PARA CAMINHAO\t1712320386\n7\tIMPERIAL LEDS\t1116226805\n8\tCOMBATSOM\t287896166\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

@@ -1,0 +1,8 @@
+{
+  "query": "UPDATE clientes SET seller_id = '1917431909' WHERE id = 1; SELECT id, nome, seller_id FROM clientes;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute UPDATE clientes SET seller_id = '1917431909' WHERE id = 1; SELECT id, nome, seller_id FROM clientes;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1062 (23000) at line 1: Duplicate entry '?' for key 'clientes.clientes_seller_id_unique'"
+  ]
+}
