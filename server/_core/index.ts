@@ -1,5 +1,7 @@
 import "dotenv/config";
 import express from "express";
+import { startScheduler } from "../mlScraper";
+import { initDefaultSettings } from "../db";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -60,6 +62,15 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Init default settings and start ML scraper scheduler
+  try {
+    await initDefaultSettings();
+    startScheduler();
+    console.log("[ASX] Default settings initialized and scheduler started");
+  } catch (e) {
+    console.warn("[ASX] Could not init settings/scheduler:", e);
+  }
 }
 
 startServer().catch(console.error);
