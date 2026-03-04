@@ -143,3 +143,10 @@
 - [x] Corrigir routers.ts (alerts upsert input → campos reais Supabase)
 - [x] 24/24 testes vitest passando
 - [x] 0 erros TypeScript
+
+## ZIP v7 (25 arquivos - schema snake_case + SSL)
+- [x] Aplicar 25 arquivos do ZIP v7
+- [x] Corrigir History.tsx (totalFound/totalViolations → productsFound/violationsFound)
+- [x] Corrigir asx.test.ts (require → import estático, categoria LAMPADA vs LED)
+- [x] 0 erros TypeScript
+- [x] 24/24 testes vitest passando

@@ -125,9 +125,6 @@ describe("Keyword extraction for ML search", () => {
 
 // ─── matchProduct Tests ──────────────────────────────────────────────────────
 describe("matchProduct — confidence scoring", () => {
-  // Import the actual function from mlScraper
-  // matchProduct e categorizarProduto importados no topo do arquivo
-
   const catalog = [
     { id: 1, codigo: "ASX1007", descricao: "ULTRA LED CSP H7 70W 10000L BIVOLT", ean: "7899", precoMinimo: "169.05" },
     { id: 2, codigo: "ASX1004", descricao: "ULTRA LED CSP H4 70W 10000L BIVOLT", ean: "7898", precoMinimo: "175.00" },
@@ -144,8 +141,7 @@ describe("matchProduct — confidence scoring", () => {
 
   it("categorizes cheap LED product as ECO", () => {
     const result = categorizarProduto("LAMPADA LED T10 PINGO", 8);
-    // A função prioriza LAMPADA sobre LED no matching de categoria
-    expect(["LED", "LAMPADA"]).toContain(result.categoria);
+    expect(result.categoria).toBe("LAMPADA"); // LAMPADA match comes before LED in the function
     expect(result.linha).toBe("ECO");
   });
 

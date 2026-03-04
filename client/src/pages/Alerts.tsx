@@ -28,7 +28,7 @@ export default function Alerts() {
 
   const handleAdd = () => {
     if (!newEmail) { toast.error("Informe um email."); return; }
-    upsert.mutate({ emailsDestinatarios: newEmail, ativo: true, incluirResumo: notifyComplete });
+    upsert.mutate({ email: newEmail, name: newName || undefined, active: true, notifyOnViolation: notifyViolation, notifyOnRunComplete: notifyComplete });
   };
 
   return (
@@ -122,17 +122,21 @@ export default function Alerts() {
               {configs.map((cfg) => (
                 <div key={cfg.id} className="flex items-center justify-between px-4 py-3 hover:bg-accent/20 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className={`h-2 w-2 rounded-full ${cfg.ativo ? "bg-green-400" : "bg-muted-foreground"}`} />
+                    <div className={`h-2 w-2 rounded-full ${cfg.active ? "bg-green-400" : "bg-muted-foreground"}`} />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{cfg.emailsDestinatarios || "—"}</p>
+                      <p className="text-sm font-medium text-foreground">{cfg.name || cfg.email}</p>
+                      {cfg.name && <p className="text-xs text-muted-foreground">{cfg.email}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {cfg.incluirResumo && (
-                      <Badge className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">Resumo</Badge>
+                    {cfg.notifyOnViolation && (
+                      <Badge className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30">Violações</Badge>
                     )}
-                    <Badge className={`text-xs border ${cfg.ativo ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
-                      {cfg.ativo ? "Ativo" : "Inativo"}
+                    {cfg.notifyOnRunComplete && (
+                      <Badge className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">Conclusão</Badge>
+                    )}
+                    <Badge className={`text-xs border ${cfg.active ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
+                      {cfg.active ? "Ativo" : "Inativo"}
                     </Badge>
                     <Button
                       variant="ghost"

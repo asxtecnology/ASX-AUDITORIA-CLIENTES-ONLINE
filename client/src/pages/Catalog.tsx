@@ -68,9 +68,14 @@ export default function Catalog() {
             codigo: r.codigo,
             descricao: r.descricao,
             ean: r.ean || undefined,
+            unidade: r.unidade || undefined,
+            caixa: r.caixa ? parseInt(r.caixa) : undefined,
+            voltagem: r.voltagem || undefined,
+            ncm: r.ncm || undefined,
             precoCusto: custo.toFixed(2),
             precoMinimo: minimo.toFixed(2),
             margemPercent: margem.toFixed(2),
+            statusBase: r.status || r.statusbase || "ATIVO",
           };
         });
       if (products.length === 0) { toast.error("Nenhum produto válido encontrado no CSV."); return; }
@@ -156,12 +161,12 @@ export default function Catalog() {
                         <td className="px-4 py-3 text-right">
                           {editingId === p.id ? (
                             <Input
-                              value={editValues.precoCusto ?? String(p.precoCusto ?? "0")}
+                              value={editValues.precoCusto ?? String(p.precoCusto)}
                               onChange={(e) => setEditValues((v) => ({ ...v, precoCusto: e.target.value }))}
                               className="h-7 text-xs bg-background w-24 ml-auto"
                             />
                           ) : (
-                            <span className="text-xs text-muted-foreground">{formatCurrency(p.precoCusto ?? "0")}</span>
+                            <span className="text-xs text-muted-foreground">{formatCurrency(p.precoCusto)}</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">

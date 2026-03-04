@@ -625,8 +625,9 @@ export async function runScraper(
       .set({
         status: finalStatus,
         finishedAt: new Date(),
-        totalFound: totalFound,
-        totalViolations: totalViolations,
+        totalProducts: catalog.length,
+        productsFound: totalFound,
+        violationsFound: totalViolations,
         errorMessage: dbErrors.length > 0
           ? `${dbErrors.length} erros de DB: ${dbErrors.slice(0, 5).join("; ")}`
           : null,
