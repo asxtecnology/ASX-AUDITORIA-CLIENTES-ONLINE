@@ -164,3 +164,8 @@
 - [x] 0 erros TypeScript
 - [x] 24/24 testes passando
 - [ ] Salvar checkpoint
+
+## Otimização de Deploy (timeout)
+- [x] Aplicar code splitting no vite.config.ts (bundle: 1.3MB → 638KB)
+- [x] 24/24 testes passando
+- [ ] Salvar checkpoint e publicar

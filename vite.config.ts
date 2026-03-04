@@ -167,6 +167,19 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom"],
+          "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-tooltip", "@radix-ui/react-popover", "@radix-ui/react-label", "@radix-ui/react-checkbox", "@radix-ui/react-switch", "@radix-ui/react-separator", "@radix-ui/react-scroll-area", "@radix-ui/react-avatar", "@radix-ui/react-progress", "@radix-ui/react-slot"],
+          "vendor-charts": ["recharts"],
+          "vendor-trpc": ["@trpc/client", "@trpc/react-query", "@trpc/server", "@tanstack/react-query"],
+          "vendor-form": ["react-hook-form", "@hookform/resolvers", "zod"],
+          "vendor-utils": ["date-fns", "clsx", "tailwind-merge", "class-variance-authority", "lucide-react"],
+        },
+      },
+    },
   },
   server: {
     host: true,
