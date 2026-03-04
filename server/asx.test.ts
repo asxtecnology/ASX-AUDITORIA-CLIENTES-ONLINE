@@ -3,8 +3,7 @@ import { appRouter } from "./routers";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
 import { matchProduct, categorizarProduto } from "./mlScraper";
-
-type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+type AuthenticatedUserr = NonNullable<TrpcContext["user"]>;
 
 function createAuthContext(role: "user" | "admin" = "admin"): { ctx: TrpcContext; clearedCookies: { name: string; options: Record<string, unknown> }[] } {
   const clearedCookies: { name: string; options: Record<string, unknown> }[] = [];
@@ -125,7 +124,8 @@ describe("Keyword extraction for ML search", () => {
 
 // ─── matchProduct Tests ──────────────────────────────────────────────────────
 describe("matchProduct — confidence scoring", () => {
-  // matchProduct and categorizarProduto imported at top of file
+  // Import the actual function from mlScraper
+  // matchProduct e categorizarProduto importados no topo do arquivo
 
   const catalog = [
     { id: 1, codigo: "ASX1007", descricao: "ULTRA LED CSP H7 70W 10000L BIVOLT", ean: "7899", precoMinimo: "169.05" },

@@ -120,3 +120,9 @@
 - [x] Aplicar páginas frontend (Dashboard, Violations, Catalog, Clientes, Vendedores, Settings, Alerts)
 - [x] Corrigir History.tsx (totalFound → productsFound, totalViolations → violationsFound)
 - [x] 24/24 testes vitest passando, 0 erros TypeScript
+
+## ZIP v5 (23 arquivos - context.ts mock dev)
+- [x] Aplicar context.ts com mock de usuário admin para desenvolvimento
+- [x] Aplicar todos os 23 arquivos do ZIP v5
+- [x] 0 erros TypeScript
+- [x] 24/24 testes vitest passando
