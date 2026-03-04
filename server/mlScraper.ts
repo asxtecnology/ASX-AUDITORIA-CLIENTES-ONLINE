@@ -30,7 +30,7 @@ import {
 import { eq, and, sql } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
 
-const REQUEST_DELAY_MS = 2000;
+const REQUEST_DELAY_MS = 3500; // Delay aumentado para evitar rate-limit do ML
 const MAX_RETRIES = 3;
 
 const SCRAPER_HEADERS = {
@@ -261,11 +261,15 @@ export function matchProduct(
   }
 
   // ── 4. Apenas conector — confiança 70 ──
+  // Usa o produto com MENOR preço mínimo para o conector (mais conservador)
   if (foundConnector) {
-    const match = catalog.find((p) =>
+    const candidates = catalog.filter((p) =>
       new RegExp(`\\b${foundConnector}\\b`).test(p.descricao.toUpperCase())
     );
-    if (match) {
+    if (candidates.length > 0) {
+      const match = candidates.reduce((a, b) =>
+        Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
+      );
       return {
         productId: match.id,
         codigo: match.codigo,
@@ -351,6 +355,12 @@ async function scrapeStorePage(
 
   const html = await fetchHtml(url);
   if (!html) return [];
+
+  // Detectar bloqueio do ML (HTML sem cards de produto)
+  if (!html.includes('ui-search-layout__item') && !html.includes('poly-component__title')) {
+    console.warn(`[ML] Bloqueio detectado para ${nickname}. HTML sem resultados.`);
+    return [];
+  }
 
   const $ = cheerio.load(html);
   const scrapedProducts: ScrapedProduct[] = [];
@@ -608,14 +618,28 @@ export async function runScraper(
       console.log("[Scraper v3] Fase 2: busca geral por codigo ASX...");
       const topProducts = catalog.slice(0, 15);
 
+      // Mapa de sellerId → nome do cliente para lookup reverso
+      const sellerIdToNome = new Map<string, string>();
+      for (const c of clientesList) {
+        if (c.sellerId) sellerIdToNome.set(c.sellerId, c.nome);
+        if (c.lojaML) sellerIdToNome.set(c.lojaML.toLowerCase(), c.nome);
+      }
+
       for (const prod of topProducts) {
         const query = prod.codigo;
         const url = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_NoIndex_True`;
         const html = await fetchHtml(url);
         if (!html) continue;
 
+        // Detectar bloqueio do ML
+        if (!html.includes('ui-search-layout__item') && !html.includes('poly-component__title')) {
+          console.warn(`[Scraper v3] Fase 2: ML bloqueou requisicao para "${query}". Aguardando 30s...`);
+          await sleep(30000);
+          continue;
+        }
+
         const $ = cheerio.load(html);
-        const fase2Items: Array<{title: string; price: number; mlbId: string; href: string; sellerEl: string; thumbnail: string}> = [];
+        const fase2Items: Array<{title: string; price: number; mlbId: string; href: string; sellerEl: string; sellerLink: string; thumbnail: string}> = [];
 
         $('li.ui-search-layout__item').each((_: number, card: any) => {
           const $card = $(card);
@@ -637,13 +661,25 @@ export async function runScraper(
           if (seenItemIds.has(mlbId)) return;
           if (mlbId) seenItemIds.add(mlbId);
 
-          const sellerEl = $card.find(".poly-component__seller").text().trim();
+          // Extrair nome do vendedor de múltiplos seletores
+          const sellerEl =
+            $card.find(".poly-component__seller").text().trim() ||
+            $card.find(".ui-search-official-store-label").text().trim() ||
+            $card.find(".ui-search-item__store-label").text().trim() ||
+            "";
+
+          // Extrair link da loja para identificar o vendedor
+          const sellerLink =
+            $card.find("a[href*='_Loja_']").attr("href") ||
+            $card.find("a[href*='loja/']").attr("href") ||
+            "";
+
           const thumbnail =
             $card.find("img").first().attr("src") ||
             $card.find("img").first().attr("data-src") ||
             "";
 
-          fase2Items.push({ title, price, mlbId, href, sellerEl, thumbnail });
+          fase2Items.push({ title, price, mlbId, href, sellerEl, sellerLink, thumbnail });
         });
 
         for (const item of fase2Items) {
@@ -654,13 +690,28 @@ export async function runScraper(
           const isViolation = item.price < matchResult.precoMinimo;
           if (isViolation) totalViolations++;
 
+          // Resolver nome do vendedor: seletor HTML → link da loja → lookup reverso → fallback
+          let resolvedSellerName = item.sellerEl;
+          if (!resolvedSellerName && item.sellerLink) {
+            const lojaMatch = item.sellerLink.match(/_Loja_([^_&?]+)/i) ||
+                              item.sellerLink.match(/\/loja\/([^/?&]+)/i);
+            if (lojaMatch) {
+              const lojaKey = lojaMatch[1].toLowerCase();
+              resolvedSellerName = sellerIdToNome.get(lojaKey) || lojaMatch[1];
+            }
+          }
+          // Lookup reverso pelo MLB ID (se for cliente cadastrado)
+          if (!resolvedSellerName) {
+            resolvedSellerName = sellerIdToNome.get(item.mlbId) || "Vendedor Nao Cadastrado";
+          }
+
           let snapshotId = 0;
           try {
             const snap2Insert = await db.insert(priceSnapshots)
               .values({
                 runId: runId,
                 productId: matchResult.productId,
-                sellerName: item.sellerEl || "Vendedor Desconhecido",
+                sellerName: resolvedSellerName,
                 sellerId: item.mlbId,
                 clienteId: null,
                 mlItemId: item.mlbId,
@@ -689,7 +740,7 @@ export async function runScraper(
                   snapshotId: snapshotId,
                   runId: runId,
                   productId: matchResult.productId,
-                  sellerName: item.sellerEl || "Vendedor Desconhecido",
+                  sellerName: resolvedSellerName,
                   sellerId: item.mlbId,
                   mlItemId: item.mlbId,
                   mlUrl: item.href.split("#")[0],

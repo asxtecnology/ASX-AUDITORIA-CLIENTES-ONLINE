@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE clientes SET sellerId = 'ls-distribuidora', lojaML = 'ls-distribuidora' WHERE nome = 'LS DISTRIBUIDORA';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute UPDATE clientes SET sellerId = 'ls-distribuidora', lojaML = 'ls-distribuidora' WHERE nome = 'LS DISTRIBUIDORA';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 64
+}
