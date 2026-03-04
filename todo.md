@@ -126,3 +126,9 @@
 - [x] Aplicar todos os 23 arquivos do ZIP v5
 - [x] 0 erros TypeScript
 - [x] 24/24 testes vitest passando
+
+## ZIP v6 (25 arquivos - Revendedores + SSL fix)
+- [x] Aplicar 25 arquivos (Clientes→Revendedores, SSL fix, seed SQL)
+- [ ] Executar seed 002_seed_revendedores.sql no Supabase (manual - SQL Editor)
+- [x] 0 erros TypeScript
+- [x] 24/24 testes vitest passando

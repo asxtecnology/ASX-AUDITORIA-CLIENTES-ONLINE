@@ -37,8 +37,11 @@ export async function getDb() {
         max: 10,
         idle_timeout: 20,
         connect_timeout: 10,
+        ssl: "require",
+        prepare: false,  // OBRIGATÓRIO para Supabase pooler (PgBouncer)
       });
       _db = drizzle(_client);
+      console.log("[Database] Conectado ao PostgreSQL");
     } catch (error) {
       console.error("[Database] Failed to connect:", error);
       _db = null;

@@ -131,7 +131,7 @@ function ClienteForm({ initial, onSave, onCancel }: {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label className="text-muted-foreground">Nome do Cliente *</Label>
+          <Label className="text-muted-foreground">Nome do Revendedor *</Label>
           <Input
             className="bg-accent border-border text-foreground"
             placeholder="Ex: LIDER SOM"
@@ -183,7 +183,7 @@ function ClienteForm({ initial, onSave, onCancel }: {
       </div>
       <div className="flex gap-2 pt-2">
         <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => onSave({ ...form, id: initial?.id })}>
-          {initial?.id ? "Salvar Alterações" : "Adicionar Cliente"}
+          {initial?.id ? "Salvar Alterações" : "Adicionar Revendedor"}
         </Button>
         <Button variant="outline" className="border-border text-muted-foreground" onClick={onCancel}>
           Cancelar
@@ -203,17 +203,17 @@ export default function Clientes() {
 
   const upsertMutation = trpc.clientes.upsert.useMutation({
     onSuccess: () => {
-      toast.success("Cliente salvo com sucesso!");
+      toast.success("Revendedor salvo com sucesso!");
       setDialogOpen(false);
       setEditingCliente(null);
       refetch();
     },
-    onError: (err) => toast.error(err.message || "Erro ao salvar cliente."),
+    onError: (err) => toast.error(err.message || "Erro ao salvar revendedor."),
   });
 
   const deleteMutation = trpc.clientes.delete.useMutation({
-    onSuccess: () => { toast.success("Cliente removido."); refetch(); },
-    onError: (err) => toast.error(err.message || "Erro ao remover cliente."),
+    onSuccess: () => { toast.success("Revendedor removido."); refetch(); },
+    onError: (err) => toast.error(err.message || "Erro ao remover revendedor."),
   });
 
   const checkMutation = trpc.clientes.runCheck.useMutation({
@@ -222,17 +222,17 @@ export default function Clientes() {
       toast.success(`Verificação concluída! ${data.violations} violação(ões) encontrada(s).`);
       refetch();
     },
-    onError: (err) => { setCheckingId(null); toast.error(err.message || "Erro ao verificar cliente."); },
+    onError: (err) => { setCheckingId(null); toast.error(err.message || "Erro ao verificar revendedor."); },
   });
 
   const handleCheck = (id: number) => {
     setCheckingId(id);
-    toast.info("Verificando anúncios do cliente no Mercado Livre...");
+    toast.info("Verificando anúncios do revendedor no Mercado Livre...");
     checkMutation.mutate({ clienteId: id });
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("Remover este cliente do monitoramento?")) {
+    if (confirm("Remover este revendedor do monitoramento?")) {
       deleteMutation.mutate({ id });
     }
   };
@@ -265,7 +265,7 @@ export default function Clientes() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Users className="w-6 h-6 text-blue-400" />
-            Clientes Monitorados
+            Revendedores ASX
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Monitoramento cirúrgico por seller_id — busca direta nos anúncios de cada cliente
@@ -275,7 +275,7 @@ export default function Clientes() {
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700 text-foreground">
               <Plus className="w-4 h-4 mr-2" />
-              Adicionar Cliente
+              Adicionar Revendedor
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-card border-border text-foreground max-w-lg">
@@ -296,7 +296,7 @@ export default function Clientes() {
         <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-bold text-blue-400">{clientes.length}</p>
-            <p className="text-sm text-muted-foreground">Clientes Cadastrados</p>
+            <p className="text-sm text-muted-foreground">Revendedores Cadastrados</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
@@ -318,8 +318,8 @@ export default function Clientes() {
         <Card className="bg-card border-border">
           <CardContent className="py-12 text-center">
             <ShoppingCart className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-            <p className="text-muted-foreground">Nenhum cliente cadastrado ainda.</p>
-            <p className="text-muted-foreground text-sm mt-1">Clique em "Adicionar Cliente" para começar.</p>
+            <p className="text-muted-foreground">Nenhum revendedor cadastrado ainda.</p>
+            <p className="text-muted-foreground text-sm mt-1">Clique em "Adicionar Revendedor" para começar.</p>
           </CardContent>
         </Card>
       ) : (
@@ -342,8 +342,8 @@ export default function Clientes() {
       <Card className="bg-card/50 border-border/50">
         <CardContent className="py-3">
           <p className="text-xs text-muted-foreground">
-            <strong className="text-muted-foreground">Como funciona:</strong> O scraper usa o seller_id de cada cliente para buscar diretamente seus anúncios no Mercado Livre com a query "ASX". 
-            Isso é cirúrgico — pega só o que o cliente está vendendo com a marca ASX, eliminando falsos positivos.
+            <strong className="text-muted-foreground">Como funciona:</strong> O scraper usa o seller_id de cada revendedor para buscar diretamente seus anúncios no Mercado Livre com a query "ASX". 
+            Isso é cirúrgico — pega só o que o revendedor está vendendo com a marca ASX, eliminando falsos positivos.
             Além disso, uma busca geral captura vendedores não cadastrados que possam estar violando preço.
           </p>
         </CardContent>

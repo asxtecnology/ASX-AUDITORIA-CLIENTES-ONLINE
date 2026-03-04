@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { AlertTriangle, BarChart3, Bell, BookOpen, LayoutDashboard, LogOut, PanelLeft, Settings, ShieldAlert, Users, TrendingUp } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, BookOpen, LayoutDashboard, LogOut, PanelLeft, Settings, ShieldAlert, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -30,8 +30,7 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: ShieldAlert, label: "Violações", path: "/violations" },
-  { icon: Users, label: "Clientes", path: "/clientes" },
-  { icon: TrendingUp, label: "Vendedores", path: "/vendedores" },
+  { icon: Users, label: "Revendedores", path: "/revendedores" },
   { icon: BookOpen, label: "Catálogo", path: "/catalog" },
   { icon: BarChart3, label: "Histórico", path: "/history" },
   { icon: Bell, label: "Alertas", path: "/alerts" },

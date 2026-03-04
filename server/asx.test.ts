@@ -3,7 +3,8 @@ import { appRouter } from "./routers";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
 import { matchProduct, categorizarProduto } from "./mlScraper";
-type AuthenticatedUserr = NonNullable<TrpcContext["user"]>;
+
+type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
 function createAuthContext(role: "user" | "admin" = "admin"): { ctx: TrpcContext; clearedCookies: { name: string; options: Record<string, unknown> }[] } {
   const clearedCookies: { name: string; options: Record<string, unknown> }[] = [];
