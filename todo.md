@@ -150,3 +150,9 @@
 - [x] Corrigir asx.test.ts (require → import estático, categoria LAMPADA vs LED)
 - [x] 0 erros TypeScript
 - [x] 24/24 testes vitest passando
+
+## Correção de Deploy (pnpm-lock.yaml divergente)
+- [x] Regenerar pnpm-lock.yaml com pnpm install
+- [x] 0 erros TypeScript após install
+- [x] 24/24 testes passando
+- [ ] Salvar checkpoint para publicar
