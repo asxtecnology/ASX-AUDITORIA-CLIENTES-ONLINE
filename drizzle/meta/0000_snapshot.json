@@ -1,43 +1,47 @@
 {
-  "id": "7509822e-1186-4a45-9399-38f7b79920b4",
+  "version": "5",
+  "dialect": "mysql",
+  "id": "8dd49116-e904-47d4-851b-542e999a9dab",
   "prevId": "00000000-0000-0000-0000-000000000000",
-  "version": "7",
-  "dialect": "postgresql",
   "tables": {
-    "public.alert_configs": {
+    "alert_configs": {
       "name": "alert_configs",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "userId": {
           "name": "userId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "emailsDestinatarios": {
           "name": "emailsDestinatarios",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "frequencia": {
           "name": "frequencia",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": "'immediate'"
         },
         "minViolacoes": {
           "name": "minViolacoes",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 1
         },
         "incluirResumo": {
@@ -45,6 +49,7 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": true
         },
         "ativo": {
@@ -52,6 +57,7 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": true
         },
         "createdAt": {
@@ -59,245 +65,287 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "updatedAt": {
           "name": "updatedAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "alert_configs_id": {
+          "name": "alert_configs_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.app_settings": {
+    "app_settings": {
       "name": "app_settings",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "key": {
           "name": "key",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "value": {
           "name": "value",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "updatedAt": {
           "name": "updatedAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "app_settings_id": {
+          "name": "app_settings_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {
         "app_settings_key_unique": {
           "name": "app_settings_key_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "key"
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.clientes": {
+    "clientes": {
       "name": "clientes",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "nome": {
           "name": "nome",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "email": {
           "name": "email",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "telefone": {
           "name": "telefone",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "lojaML": {
           "name": "lojaML",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "sellerId": {
           "name": "sellerId",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "status": {
           "name": "status",
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'ativo'"
         },
         "totalProdutos": {
           "name": "totalProdutos",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "totalViolacoes": {
           "name": "totalViolacoes",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "ultimaVerificacao": {
           "name": "ultimaVerificacao",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "createdAt": {
           "name": "createdAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "updatedAt": {
           "name": "updatedAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "clientes_id": {
+          "name": "clientes_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {
         "clientes_sellerId_unique": {
           "name": "clientes_sellerId_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "sellerId"
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.historico_precos": {
+    "historico_precos": {
       "name": "historico_precos",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "codigo_asx": {
           "name": "codigo_asx",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "item_id": {
           "name": "item_id",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "vendedor": {
           "name": "vendedor",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "preco": {
           "name": "preco",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "plataforma": {
           "name": "plataforma",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'mercadolivre'"
         },
         "data_captura": {
           "name": "data_captura",
           "type": "date",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "historico_precos_id": {
+          "name": "historico_precos_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.monitoring_runs": {
+    "monitoring_runs": {
       "name": "monitoring_runs",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "clienteId": {
           "name": "clienteId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "plataforma": {
           "name": "plataforma",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": "'mercadolivre'"
         },
         "status": {
@@ -305,6 +353,7 @@
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'running'"
         },
         "startedAt": {
@@ -312,26 +361,30 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "finishedAt": {
           "name": "finishedAt",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "totalFound": {
           "name": "totalFound",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "totalViolations": {
           "name": "totalViolations",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "triggeredBy": {
@@ -339,104 +392,123 @@
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'scheduled'"
         },
         "errorMessage": {
           "name": "errorMessage",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "monitoring_runs_id": {
+          "name": "monitoring_runs_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.price_snapshots": {
+    "price_snapshots": {
       "name": "price_snapshots",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "productId": {
           "name": "productId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "clienteId": {
           "name": "clienteId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "runId": {
           "name": "runId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "mlItemId": {
           "name": "mlItemId",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "mlTitle": {
           "name": "mlTitle",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "mlUrl": {
           "name": "mlUrl",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "mlThumbnail": {
           "name": "mlThumbnail",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "sellerId": {
           "name": "sellerId",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "sellerName": {
           "name": "sellerName",
           "type": "varchar(200)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "precoAnunciado": {
           "name": "precoAnunciado",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "precoMinimo": {
           "name": "precoMinimo",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "plataforma": {
           "name": "plataforma",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": "'mercadolivre'"
         },
         "isViolation": {
@@ -444,102 +516,120 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": false
         },
         "metodoMatch": {
           "name": "metodoMatch",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "confianca": {
           "name": "confianca",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "validationReason": {
           "name": "validationReason",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "capturedAt": {
           "name": "capturedAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "price_snapshots_id": {
+          "name": "price_snapshots_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.products": {
+    "products": {
       "name": "products",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "codigo": {
           "name": "codigo",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "descricao": {
           "name": "descricao",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "ean": {
           "name": "ean",
           "type": "varchar(20)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "categoria": {
           "name": "categoria",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "linha": {
           "name": "linha",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "precoCusto": {
           "name": "precoCusto",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'0'"
         },
         "precoMinimo": {
           "name": "precoMinimo",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'0'"
         },
         "margemPercent": {
           "name": "margemPercent",
-          "type": "numeric(5, 2)",
+          "type": "decimal(5,2)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'60'"
         },
         "ativo": {
@@ -547,6 +637,7 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": true
         },
         "createdAt": {
@@ -554,71 +645,82 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "updatedAt": {
           "name": "updatedAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "products_id": {
+          "name": "products_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {
         "products_codigo_unique": {
           "name": "products_codigo_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "codigo"
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.users": {
+    "users": {
       "name": "users",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "openId": {
           "name": "openId",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "email": {
           "name": "email",
           "type": "varchar(320)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "loginMethod": {
           "name": "loginMethod",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "role": {
           "name": "role",
           "type": "varchar(10)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'user'"
         },
         "createdAt": {
@@ -626,86 +728,99 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "updatedAt": {
           "name": "updatedAt",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "lastSignedIn": {
           "name": "lastSignedIn",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "users_id": {
+          "name": "users_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {
         "users_openId_unique": {
           "name": "users_openId_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "openId"
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.vendedores": {
+    "vendedores": {
       "name": "vendedores",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "cliente_id": {
           "name": "cliente_id",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "vendedor_id": {
           "name": "vendedor_id",
           "type": "varchar(100)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "nome": {
           "name": "nome",
           "type": "varchar(200)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "autoincrement": false
         },
         "plataforma": {
           "name": "plataforma",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'mercadolivre'"
         },
         "total_anuncios": {
           "name": "total_anuncios",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "total_violacoes": {
           "name": "total_violacoes",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "primeira_vez": {
@@ -713,136 +828,160 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "ultima_vez": {
           "name": "ultima_vez",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "vendedores_id": {
+          "name": "vendedores_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     },
-    "public.violations": {
+    "violations": {
       "name": "violations",
-      "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "serial",
-          "primaryKey": true,
-          "notNull": true
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
         },
         "productId": {
           "name": "productId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "clienteId": {
           "name": "clienteId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "runId": {
           "name": "runId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "snapshotId": {
           "name": "snapshotId",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "mlItemId": {
           "name": "mlItemId",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "mlTitle": {
           "name": "mlTitle",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "mlUrl": {
           "name": "mlUrl",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "mlThumbnail": {
           "name": "mlThumbnail",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "sellerId": {
           "name": "sellerId",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "sellerName": {
           "name": "sellerName",
           "type": "varchar(200)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "precoAnunciado": {
           "name": "precoAnunciado",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "precoMinimo": {
           "name": "precoMinimo",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "diferenca": {
           "name": "diferenca",
-          "type": "numeric(10, 2)",
+          "type": "decimal(10,2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "percentAbaixo": {
           "name": "percentAbaixo",
-          "type": "numeric(5, 2)",
+          "type": "decimal(5,2)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "plataforma": {
           "name": "plataforma",
           "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": "'mercadolivre'"
         },
         "metodoMatch": {
           "name": "metodoMatch",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "confianca": {
           "name": "confianca",
-          "type": "integer",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
           "default": 0
         },
         "status": {
@@ -850,6 +989,7 @@
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
           "default": "'open'"
         },
         "detected_at": {
@@ -857,45 +997,53 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "autoincrement": false,
+          "default": "(now())"
         },
         "resolvedAt": {
           "name": "resolvedAt",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "resolvedBy": {
           "name": "resolvedBy",
           "type": "varchar(200)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         },
         "notes": {
           "name": "notes",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "violations_id": {
+          "name": "violations_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
+      "checkConstraint": {}
     }
   },
-  "enums": {},
-  "schemas": {},
-  "sequences": {},
-  "roles": {},
-  "policies": {},
   "views": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {},
+    "indexes": {}
   }
 }

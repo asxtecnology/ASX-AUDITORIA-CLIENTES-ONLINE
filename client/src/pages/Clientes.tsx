@@ -244,9 +244,8 @@ export default function Clientes() {
     upsertMutation.mutate({
       id: data.id,
       nome: data.nome,
-      sellerId: data.sellerId,
-      lojaML: data.lojaML || undefined,
-      email: data.email || undefined,
+      seller_id: data.sellerId || data.seller_id,
+      loja_ml: data.lojaML || data.loja_ml || undefined,
       status: data.status,
     });
   };

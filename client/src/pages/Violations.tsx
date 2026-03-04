@@ -43,10 +43,10 @@ export default function Violations() {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      (v.sellerName ?? "").toLowerCase().includes(q) ||
+      (v.seller_name ?? "").toLowerCase().includes(q) ||
       (p?.codigo ?? "").toLowerCase().includes(q) ||
       (p?.descricao ?? "").toLowerCase().includes(q) ||
-      (v.mlTitle ?? "").toLowerCase().includes(q)
+      (v.ml_title ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -54,9 +54,9 @@ export default function Violations() {
     if (!data?.items.length) return;
     const headers = ["ID", "Produto", "Vendedor", "Preço Anunciado", "Preço Mínimo", "Diferença", "%Abaixo", "Status", "Detectado", "URL"];
     const rows = data.items.map(({ v, p }) => [
-      v.id, p?.codigo ?? "", v.sellerName,
-      v.precoAnunciado, v.precoMinimo, v.diferenca, v.percentAbaixo,
-      v.status, new Date(v.detected_at).toLocaleString("pt-BR"), v.mlUrl ?? "",
+      v.id, p?.codigo ?? "", v.seller_name,
+      v.preco_anunciado, v.preco_minimo, v.diferenca, v.percent_abaixo,
+      v.status, new Date(v.detected_at).toLocaleString("pt-BR"), v.ml_url ?? "",
     ]);
     const csv = [headers, ...rows].map((r) => r.join(";")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -142,23 +142,23 @@ export default function Violations() {
                         <td className="px-4 py-3">
                           <div>
                             <p className="font-semibold text-foreground text-xs">{p?.codigo ?? "—"}</p>
-                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{v.mlTitle ?? p?.descricao ?? "—"}</p>
+                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{v.ml_title ?? p?.descricao ?? "—"}</p>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-xs font-medium text-foreground">{v.sellerName ?? "Desconhecido"}</p>
-                          {v.sellerId && <p className="text-xs text-muted-foreground">ID: {v.sellerId}</p>}
+                          <p className="text-xs font-medium text-foreground">{v.seller_name ?? "Desconhecido"}</p>
+                          {v.seller_id && <p className="text-xs text-muted-foreground">ID: {v.seller_id}</p>}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-red-400 font-bold text-sm">{formatCurrency(v.precoAnunciado ?? "0")}</span>
+                          <span className="text-red-400 font-bold text-sm">{formatCurrency(v.preco_anunciado ?? "0")}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-muted-foreground text-xs">{formatCurrency(v.precoMinimo ?? "0")}</span>
+                          <span className="text-muted-foreground text-xs">{formatCurrency(v.preco_minimo ?? "0")}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex flex-col items-end">
                             <span className="text-orange-400 font-medium text-xs">-{formatCurrency(v.diferenca ?? "0")}</span>
-                            <span className="text-orange-400/70 text-xs">({parseFloat(String(v.percentAbaixo)).toFixed(1)}%)</span>
+                            <span className="text-orange-400/70 text-xs">({parseFloat(String(v.percent_abaixo ?? 0)).toFixed(1)}%)</span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -169,12 +169,12 @@ export default function Violations() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1">
-                            {v.mlUrl && (
+                            {v.ml_url && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 w-7 p-0"
-                                onClick={() => window.open(v.mlUrl!, "_blank")}
+                                onClick={() => window.open(v.ml_url!, "_blank")}
                                 title="Ver no ML"
                               >
                                 <ExternalLink className="h-3.5 w-3.5 text-blue-400" />

@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql, { Pool } from "mysql2/promise";
 import {
   AlertConfig,
   AppSetting,
@@ -20,16 +20,21 @@ import {
   products,
   users,
   violations,
+  clientes,
+  vendedores,
+  historicoPrecosTable,
+  InsertCliente,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: Pool | null = null;
+let _db: ReturnType<typeof drizzle<Record<string, unknown>, Pool>> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      const client = postgres(process.env.DATABASE_URL, { prepare: false });
-      _db = drizzle(client);
+      _pool = mysql.createPool(process.env.DATABASE_URL);
+      _db = drizzle(_pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -58,7 +63,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
+  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -104,16 +109,15 @@ export async function getProductByCodigo(codigo: string) {
 export async function upsertProduct(product: InsertProduct) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(products).values(product).onConflictDoUpdate({
-    target: products.codigo,
+  await db.insert(products).values(product).onDuplicateKeyUpdate({
     set: {
       descricao: product.descricao,
       ean: product.ean,
       categoria: product.categoria,
       linha: product.linha,
-      precoCusto: product.precoCusto,
-      precoMinimo: product.precoMinimo,
-      margemPercent: product.margemPercent,
+      preco_custo: product.preco_custo,
+      preco_minimo: product.preco_minimo,
+      margem_percent: product.margem_percent,
       updatedAt: new Date(),
     },
   });
@@ -141,7 +145,7 @@ export async function getActiveProducts(): Promise<Product[]> {
 export async function createMonitoringRun(data: InsertMonitoringRun) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(monitoringRuns).values(data).returning({ id: monitoringRuns.id });
+  const result = await db.insert(monitoringRuns).values(data).$returningId();
   return result[0] ?? null;
 }
 
@@ -154,13 +158,13 @@ export async function updateMonitoringRun(id: number, data: Partial<MonitoringRu
 export async function getMonitoringRuns(limit = 20) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.startedAt)).limit(limit);
+  return db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.started_at)).limit(limit);
 }
 
 export async function getLatestMonitoringRun() {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.startedAt)).limit(1);
+  const result = await db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.started_at)).limit(1);
   return result[0] ?? null;
 }
 
@@ -177,8 +181,8 @@ export async function getSnapshotsByProduct(productId: number, days = 30) {
   const since = new Date();
   since.setDate(since.getDate() - days);
   return db.select().from(priceSnapshots)
-    .where(and(eq(priceSnapshots.productId, productId), gte(priceSnapshots.capturedAt, since)))
-    .orderBy(desc(priceSnapshots.capturedAt));
+    .where(and(eq(priceSnapshots.product_id, productId), gte(priceSnapshots.captured_at, since)))
+    .orderBy(desc(priceSnapshots.captured_at));
 }
 
 // ─── Violations ───────────────────────────────────────────────────────────────
@@ -193,8 +197,6 @@ export async function getViolations(opts?: {
   productId?: number;
   sellerId?: string;
   clienteId?: number;
-  categoria?: string;
-  confiancaMin?: number;
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
@@ -204,16 +206,16 @@ export async function getViolations(opts?: {
   if (!db) return { items: [], total: 0 };
   const conditions = [];
   if (opts?.status) conditions.push(eq(violations.status, opts.status));
-  if (opts?.productId) conditions.push(eq(violations.productId, opts.productId));
-  if (opts?.sellerId) conditions.push(eq(violations.sellerId, opts.sellerId));
-  if (opts?.clienteId) conditions.push(eq(violations.clienteId, opts.clienteId));
+  if (opts?.productId) conditions.push(eq(violations.product_id, opts.productId));
+  if (opts?.sellerId) conditions.push(eq(violations.seller_id, opts.sellerId));
+  if (opts?.clienteId) conditions.push(eq(violations.cliente_id, opts.clienteId));
   if (opts?.dateFrom) conditions.push(gte(violations.detected_at, opts.dateFrom));
   if (opts?.dateTo) conditions.push(lte(violations.detected_at, opts.dateTo));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [items, totalRows] = await Promise.all([
     db.select({ v: violations, p: products })
       .from(violations)
-      .leftJoin(products, eq(violations.productId, products.id))
+      .leftJoin(products, eq(violations.product_id, products.id))
       .where(where)
       .orderBy(desc(violations.detected_at))
       .limit(opts?.limit ?? 50)
@@ -247,7 +249,7 @@ export async function updateViolationStatus(id: number, status: "open" | "notifi
   const db = await getDb();
   if (!db) return;
   const update: Record<string, unknown> = { status };
-  if (status === "resolved") update.resolvedAt = new Date();
+  if (status === "resolved") update.resolved_at = new Date();
   await db.update(violations).set(update).where(eq(violations.id, id));
 }
 
@@ -261,13 +263,13 @@ export async function getViolationTrend(days = 30) {
     if (Number(countResult[0]?.count ?? 0) === 0) return [];
 
     const rows = await db.execute(
-      sql`SELECT DATE("detected_at") as date, COUNT(*) as cnt
+      sql`SELECT DATE(detected_at) as date, COUNT(*) as cnt
           FROM violations
-          WHERE "detected_at" >= ${since}
-          GROUP BY DATE("detected_at")
-          ORDER BY DATE("detected_at")`
+          WHERE detected_at >= ${since}
+          GROUP BY DATE(detected_at)
+          ORDER BY DATE(detected_at)`
     );
-    const results = Array.isArray(rows) ? rows : [];
+    const results = Array.isArray(rows) ? (rows as unknown as any[][])[0] ?? [] : [];
     return results.map((r: any) => ({ date: String(r.date), count: Number(r.cnt) }));
   } catch (e) {
     console.error("[DB] getViolationTrend error:", e);
@@ -287,12 +289,11 @@ export async function upsertAlertConfig(data: InsertAlertConfig) {
   if (!db) return;
   if (data.id) {
     await db.update(alertConfigs).set({
-      emailsDestinatarios: data.emailsDestinatarios,
-      frequencia: data.frequencia,
-      minViolacoes: data.minViolacoes,
-      incluirResumo: data.incluirResumo,
-      ativo: data.ativo,
-      updatedAt: new Date(),
+      email: data.email,
+      name: data.name,
+      active: data.active,
+      notify_on_violation: data.notify_on_violation,
+      notify_on_run_complete: data.notify_on_run_complete,
     }).where(eq(alertConfigs.id, data.id));
   } else {
     await db.insert(alertConfigs).values(data);
@@ -322,8 +323,7 @@ export async function getAllSettings(): Promise<AppSetting[]> {
 export async function upsertSetting(key: string, value: string) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({
-    target: appSettings.key,
+  await db.insert(appSettings).values({ key, value }).onDuplicateKeyUpdate({
     set: { value, updatedAt: new Date() },
   });
 }
@@ -343,14 +343,7 @@ export async function initDefaultSettings() {
   }
 }
 
-// ─── v2: Clientes ─────────────────────────────────────────────────────────────
-import {
-  clientes,
-  vendedores,
-  historicoPrecosTable,
-  InsertCliente,
-} from "../drizzle/schema";
-
+// ─── Clientes ─────────────────────────────────────────────────────────────────
 export async function getClientes() {
   const db = await getDb();
   if (!db) return [];
@@ -367,9 +360,8 @@ export async function getClienteById(id: number) {
 export async function upsertCliente(data: InsertCliente) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(clientes).values(data).onConflictDoUpdate({
-    target: clientes.sellerId,
-    set: { nome: data.nome, lojaML: data.lojaML, email: data.email, telefone: data.telefone, status: data.status, updatedAt: new Date() },
+  await db.insert(clientes).values(data).onDuplicateKeyUpdate({
+    set: { nome: data.nome, loja_ml: data.loja_ml, status: data.status, updatedAt: new Date() },
   });
 }
 
@@ -379,7 +371,7 @@ export async function deleteCliente(id: number) {
   await db.delete(clientes).where(eq(clientes.id, id));
 }
 
-// ─── v2: Vendedores ───────────────────────────────────────────────────────────
+// ─── Vendedores ───────────────────────────────────────────────────────────────
 export async function getVendedores(opts?: { limit?: number; offset?: number; orderBy?: "total_violacoes" | "total_anuncios" }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
@@ -401,13 +393,13 @@ export async function getViolationsByCliente(clienteId: number, limit = 20) {
   if (!db) return [];
   return db.select({ v: violations, p: products })
     .from(violations)
-    .leftJoin(products, eq(violations.productId, products.id))
-    .where(eq(violations.clienteId, clienteId))
+    .leftJoin(products, eq(violations.product_id, products.id))
+    .where(eq(violations.cliente_id, clienteId))
     .orderBy(desc(violations.detected_at))
     .limit(limit);
 }
 
-// ─── v2: Historico de Precos ──────────────────────────────────────────────────
+// ─── Historico de Precos ──────────────────────────────────────────────────────
 export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?: string; days?: number }) {
   const db = await getDb();
   if (!db) return [];
@@ -417,8 +409,7 @@ export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?:
   if (opts?.days) {
     const since = new Date();
     since.setDate(since.getDate() - opts.days);
-    const sinceStr = since.toISOString().split("T")[0];
-    conditions.push(gte(historicoPrecosTable.data_captura, sinceStr));
+    conditions.push(gte(historicoPrecosTable.data_captura, since.toISOString().split("T")[0] as unknown as Date));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.data_captura)).limit(500);

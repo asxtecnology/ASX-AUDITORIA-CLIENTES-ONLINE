@@ -1,0 +1,330 @@
+{
+  "query": "DESCRIBE products; DESCRIBE violations;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute DESCRIBE products; DESCRIBE violations;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "codigo",
+      "Type": "varchar(32)",
+      "Null": "NO",
+      "Key": "UNI",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "descricao",
+      "Type": "text",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ean",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "unidade",
+      "Type": "varchar(10)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "caixa",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "voltagem",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ncm",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "preco_custo",
+      "Type": "decimal(10,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "preco_minimo",
+      "Type": "decimal(10,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "margem_percent",
+      "Type": "decimal(5,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "60.00",
+      "Extra": ""
+    },
+    {
+      "Field": "status_base",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "ATIVO",
+      "Extra": ""
+    },
+    {
+      "Field": "ativo",
+      "Type": "tinyint(1)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "Field": "categoria",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "linha",
+      "Type": "enum('PREMIUM','PLUS','ECO')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "Field",
+      "Type": "Type",
+      "Null": "Null",
+      "Key": "Key",
+      "Default": "Default",
+      "Extra": "Extra"
+    },
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "snapshot_id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "run_id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "product_id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "seller_name",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "seller_id",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ml_item_id",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ml_url",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ml_thumbnail",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ml_title",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "preco_anunciado",
+      "Type": "decimal(10,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "preco_minimo",
+      "Type": "decimal(10,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "diferenca",
+      "Type": "decimal(10,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "percent_abaixo",
+      "Type": "decimal(5,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "status",
+      "Type": "enum('open','notified','resolved')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "open",
+      "Extra": ""
+    },
+    {
+      "Field": "notified_at",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "resolved_at",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "detected_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "cliente_id",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "plataforma",
+      "Type": "varchar(32)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "mercadolivre",
+      "Extra": ""
+    },
+    {
+      "Field": "confianca",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "metodo_match",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\ncodigo\tvarchar(32)\tNO\tUNI\tNULL\t\ndescricao\ttext\tNO\t\tNULL\t\nean\tvarchar(20)\tYES\t\tNULL\t\nunidade\tvarchar(10)\tYES\t\tNULL\t\ncaixa\tint\tYES\t\tNULL\t\nvoltagem\tvarchar(20)\tYES\t\tNULL\t\nncm\tvarchar(20)\tYES\t\tNULL\t\npreco_custo\tdecimal(10,2)\tNO\t\tNULL\t\npreco_minimo\tdecimal(10,2)\tNO\t\tNULL\t\nmargem_percent\tdecimal(5,2)\tNO\t\t60.00\t\nstatus_base\tvarchar(20)\tYES\t\tATIVO\t\nativo\ttinyint(1)\tNO\t\t1\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\ncategoria\tvarchar(64)\tYES\t\tNULL\t\nlinha\tenum('PREMIUM','PLUS','ECO')\tYES\t\tNULL\t\nField\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nsnapshot_id\tint\tNO\t\tNULL\t\nrun_id\tint\tNO\t\tNULL\t\nproduct_id\tint\tNO\t\tNULL\t\nseller_name\tvarchar(255)\tNO\t\tNULL\t\nseller_id\tvarchar(64)\tYES\t\tNULL\t\nml_item_id\tvarchar(64)\tYES\t\tNULL\t\nml_url\ttext\tYES\t\tNULL\t\nml_thumbnail\ttext\tYES\t\tNULL\t\nml_title\ttext\tYES\t\tNULL\t\npreco_anunciado\tdecimal(10,2)\tNO\t\tNULL\t\npreco_minimo\tdecimal(10,2)\tNO\t\tNULL\t\ndiferenca\tdecimal(10,2)\tNO\t\tNULL\t\npercent_abaixo\tdecimal(5,2)\tNO\t\tNULL\t\nstatus\tenum('open','notified','resolved')\tNO\t\topen\t\nnotified_at\ttimestamp\tYES\t\tNULL\t\nresolved_at\ttimestamp\tYES\t\tNULL\t\ndetected_at\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\ncliente_id\tint\tYES\t\tNULL\t\nplataforma\tvarchar(32)\tYES\t\tmercadolivre\t\nconfianca\tint\tYES\t\t0\t\nmetodo_match\tvarchar(64)\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

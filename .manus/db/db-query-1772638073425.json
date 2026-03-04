@@ -1,0 +1,43 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "alert_configs"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "app_settings"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "clientes"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "historico_precos"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "monitoring_runs"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "price_snapshots"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "products"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "users"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "vendedores"
+    },
+    {
+      "Tables_in_NPFC3DSbzknmDZg4Ci4BAq": "violations"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_NPFC3DSbzknmDZg4Ci4BAq\n__drizzle_migrations\nalert_configs\napp_settings\nclientes\nhistorico_precos\nmonitoring_runs\nprice_snapshots\nproducts\nusers\nvendedores\nviolations\n",
+  "stderr": "",
+  "execution_time_ms": 85
+}

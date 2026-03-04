@@ -72,9 +72,9 @@ const productsRouter = router({
     .input(z.object({
       id: z.number(),
       descricao: z.string().optional(),
-      precoCusto: z.string().optional(),
-      precoMinimo: z.string().optional(),
-      margemPercent: z.string().optional(),
+      preco_custo: z.string().optional(),
+      preco_minimo: z.string().optional(),
+      margem_percent: z.string().optional(),
       ativo: z.boolean().optional(),
     }))
     .mutation(({ input }) => {
@@ -93,9 +93,9 @@ const productsRouter = router({
       ean: z.string().optional(),
       categoria: z.string().optional(),
       linha: z.string().optional(),
-      precoCusto: z.string(),
-      precoMinimo: z.string(),
-      margemPercent: z.string().optional(),
+      preco_custo: z.string(),
+      preco_minimo: z.string(),
+      margem_percent: z.string().optional(),
     })))
     .mutation(async ({ input }) => {
       let imported = 0;
@@ -104,7 +104,7 @@ const productsRouter = router({
         try {
           await upsertProduct({
             ...p,
-            margemPercent: p.margemPercent ?? "60.00",
+            margem_percent: p.margem_percent ?? "60.00",
           });
           imported++;
         } catch {
@@ -185,10 +185,8 @@ const clientesRouter = router({
     .input(z.object({
       id: z.number().optional(),
       nome: z.string().min(1),
-      sellerId: z.string().min(1),
-      lojaML: z.string().optional(),
-      email: z.string().optional(),
-      telefone: z.string().optional(),
+      seller_id: z.string().min(1),
+      loja_ml: z.string().optional(),
       status: z.enum(["ativo", "inativo"]).default("ativo"),
     }))
     .mutation(({ input }) => upsertCliente(input)),
@@ -231,12 +229,11 @@ const alertsRouter = router({
   upsert: protectedProcedure
     .input(z.object({
       id: z.number().optional(),
-      userId: z.number().optional(),
-      emailsDestinatarios: z.string().optional(),
-      frequencia: z.string().default("immediate"),
-      minViolacoes: z.number().default(1),
-      incluirResumo: z.boolean().default(true),
-      ativo: z.boolean().default(true),
+      email: z.string().optional(),
+      name: z.string().optional(),
+      active: z.boolean().default(true),
+      notify_on_violation: z.boolean().default(true),
+      notify_on_run_complete: z.boolean().default(false),
     }))
     .mutation(({ input }) => upsertAlertConfig(input)),
 
