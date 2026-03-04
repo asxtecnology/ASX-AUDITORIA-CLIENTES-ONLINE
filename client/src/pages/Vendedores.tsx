@@ -14,7 +14,7 @@ import { TrendingUp, AlertTriangle, Search, ShoppingBag, ExternalLink } from "lu
 
 export default function Vendedores() {
   const [search, setSearch] = useState("");
-  const [orderBy, setOrderBy] = useState<"total_violacoes" | "total_anuncios">("total_violacoes");
+  const [orderBy, setOrderBy] = useState<"totalViolacoes" | "totalAnuncios">("totalViolacoes");
 
   const { data: vendedoresData } = trpc.vendedores.list.useQuery({ limit: 50, offset: 0, orderBy });
 
@@ -119,17 +119,17 @@ export default function Vendedores() {
         <div className="flex gap-2">
           <Button
             size="sm"
-            variant={orderBy === "total_violacoes" ? "default" : "outline"}
-            className={orderBy === "total_violacoes" ? "bg-blue-600" : "border-border text-muted-foreground"}
-            onClick={() => setOrderBy("total_violacoes")}
+            variant={orderBy === "totalViolacoes" ? "default" : "outline"}
+            className={orderBy === "totalViolacoes" ? "bg-blue-600" : "border-border text-muted-foreground"}
+            onClick={() => setOrderBy("totalViolacoes")}
           >
             Por Violações
           </Button>
           <Button
             size="sm"
-            variant={orderBy === "total_anuncios" ? "default" : "outline"}
-            className={orderBy === "total_anuncios" ? "bg-blue-600" : "border-border text-muted-foreground"}
-            onClick={() => setOrderBy("total_anuncios")}
+            variant={orderBy === "totalAnuncios" ? "default" : "outline"}
+            className={orderBy === "totalAnuncios" ? "bg-blue-600" : "border-border text-muted-foreground"}
+            onClick={() => setOrderBy("totalAnuncios")}
           >
             Por Anúncios
           </Button>

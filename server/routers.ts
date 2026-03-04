@@ -211,7 +211,7 @@ const vendedoresRouter = router({
     .input(z.object({
       limit: z.number().default(50),
       offset: z.number().default(0),
-      orderBy: z.enum(["total_violacoes", "total_anuncios"]).default("total_violacoes"),
+      orderBy: z.enum(["totalViolacoes", "totalAnuncios"]).default("totalViolacoes"),
     }))
     .query(({ input }) => getVendedores(input)),
 

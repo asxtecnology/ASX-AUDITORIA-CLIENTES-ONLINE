@@ -29,6 +29,7 @@ import { ENV } from "./_core/env";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _db: any = null;
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -48,13 +49,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
   if (!db) return;
-  const now = new Date();
-  const values: InsertUser = {
-    openId: user.openId,
-    createdAt: now,
-    updatedAt: now,
-    lastSignedIn: now,
-  };
+  const values: InsertUser = { openId: user.openId };
   const updateSet: Record<string, unknown> = {};
   const textFields = ["name", "email", "loginMethod"] as const;
   textFields.forEach((field) => {
@@ -80,7 +75,7 @@ export async function getUserByOpenId(openId: string) {
 }
 
 // ─── Products ─────────────────────────────────────────────────────────────────
-export async function getProducts(opts?: { search?: string; ativo?: boolean; categoria?: string; linha?: string; limit?: number; offset?: number }) {
+export async function getProducts(opts?: { search?: string; ativo?: boolean; limit?: number; offset?: number }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const conditions = [];
@@ -88,8 +83,6 @@ export async function getProducts(opts?: { search?: string; ativo?: boolean; cat
     conditions.push(or(like(products.descricao, `%${opts.search}%`), like(products.codigo, `%${opts.search}%`)));
   }
   if (opts?.ativo !== undefined) conditions.push(eq(products.ativo, opts.ativo));
-  if (opts?.categoria) conditions.push(eq(products.categoria, opts.categoria));
-  if (opts?.linha) conditions.push(eq(products.linha, opts.linha));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [items, totalRows] = await Promise.all([
     db.select().from(products).where(where).orderBy(products.codigo).limit(opts?.limit ?? 50).offset(opts?.offset ?? 0),
@@ -115,18 +108,14 @@ export async function getProductByCodigo(codigo: string) {
 export async function upsertProduct(product: InsertProduct) {
   const db = await getDb();
   if (!db) return;
-  const now = new Date();
-  await db.insert(products).values({ ...product, createdAt: now, updatedAt: now }).onDuplicateKeyUpdate({
+  await db.insert(products).values(product).onDuplicateKeyUpdate({
     set: {
       descricao: product.descricao,
       ean: product.ean,
-      categoria: product.categoria,
-      linha: product.linha,
       precoCusto: product.precoCusto,
       precoMinimo: product.precoMinimo,
       margemPercent: product.margemPercent,
-      statusBase: product.statusBase,
-      updatedAt: now,
+      updatedAt: new Date(),
     },
   });
 }
@@ -150,10 +139,12 @@ export async function getActiveProducts(): Promise<Product[]> {
 }
 
 // ─── Recalcular precoMinimo de TODOS os produtos com nova margem ──────────────
+// Chamado quando o usuário muda margem_percent nas Configurações.
+// precoMinimo = precoCusto * (1 + margem / 100)
 export async function recalculateAllProductPrices(margemPercent: number) {
   const db = await getDb();
   if (!db) return { updated: 0 };
-  const multiplier = String(1 + margemPercent / 100);
+  const multiplier = 1 + margemPercent / 100;
   await db.execute(
     sql`UPDATE products
         SET precoMinimo   = ROUND(CAST(precoCusto AS DECIMAL(10,2)) * ${multiplier}, 2),
@@ -168,7 +159,7 @@ export async function recalculateAllProductPrices(margemPercent: number) {
 export async function createMonitoringRun(data: InsertMonitoringRun) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(monitoringRuns).values({ ...data, startedAt: new Date() }).$returningId();
+  const result = await db.insert(monitoringRuns).values(data).$returningId();
   return result[0] ? { id: result[0].id } : null;
 }
 
@@ -195,7 +186,7 @@ export async function getLatestMonitoringRun() {
 export async function insertPriceSnapshot(data: InsertPriceSnapshot) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(priceSnapshots).values({ ...data, capturedAt: new Date() });
+  await db.insert(priceSnapshots).values(data);
 }
 
 export async function getSnapshotsByProduct(productId: number, days = 30) {
@@ -212,14 +203,13 @@ export async function getSnapshotsByProduct(productId: number, days = 30) {
 export async function insertViolation(data: InsertViolation) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(violations).values({ ...data, detectedAt: new Date() });
+  await db.insert(violations).values(data);
 }
 
 export async function getViolations(opts?: {
   status?: "open" | "notified" | "resolved";
   productId?: number;
   sellerId?: string;
-  clienteId?: number;
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
@@ -231,7 +221,6 @@ export async function getViolations(opts?: {
   if (opts?.status) conditions.push(eq(violations.status, opts.status));
   if (opts?.productId) conditions.push(eq(violations.productId, opts.productId));
   if (opts?.sellerId) conditions.push(eq(violations.sellerId, opts.sellerId));
-  if (opts?.clienteId) conditions.push(eq(violations.clienteId, opts.clienteId));
   if (opts?.dateFrom) conditions.push(gte(violations.detectedAt, opts.dateFrom));
   if (opts?.dateTo) conditions.push(lte(violations.detectedAt, opts.dateTo));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -292,8 +281,8 @@ export async function getViolationTrend(days = 30) {
           GROUP BY DATE(detectedAt)
           ORDER BY DATE(detectedAt)`
     );
-    const results = Array.isArray(rows) ? (rows as unknown as any[][])[0] ?? [] : [];
-    return results.map((r: any) => ({ date: String(r.date), count: Number(r.cnt) }));
+    const results = Array.isArray(rows) ? rows[0] : [];
+    return (results as any[]).map((r: any) => ({ date: String(r.date), count: Number(r.cnt) }));
   } catch (e) {
     console.error("[DB] getViolationTrend error:", e);
     return [];
@@ -310,8 +299,7 @@ export async function getAlertConfigs(): Promise<AlertConfig[]> {
 export async function upsertAlertConfig(data: InsertAlertConfig) {
   const db = await getDb();
   if (!db) return;
-  const now = new Date();
-  await db.insert(alertConfigs).values({ ...data, createdAt: now }).onDuplicateKeyUpdate({
+  await db.insert(alertConfigs).values(data).onDuplicateKeyUpdate({
     set: { name: data.name, active: data.active, notifyOnViolation: data.notifyOnViolation, notifyOnRunComplete: data.notifyOnRunComplete },
   });
 }
@@ -339,20 +327,19 @@ export async function getAllSettings(): Promise<AppSetting[]> {
 export async function upsertSetting(key: string, value: string, description?: string) {
   const db = await getDb();
   if (!db) return;
-  const now = new Date();
-  await db.insert(appSettings).values({ key, value, description, updatedAt: now }).onDuplicateKeyUpdate({
-    set: { value, updatedAt: now },
+  await db.insert(appSettings).values({ key, value, description }).onDuplicateKeyUpdate({
+    set: { value, updatedAt: new Date() },
   });
 }
 
 export async function initDefaultSettings() {
   const defaults: InsertAppSetting[] = [
-    { key: "margem_percent", value: "60", description: "Margem mínima de preço (%)", updatedAt: new Date() },
-    { key: "scraper_hora", value: "14", description: "Hora de execução do scraper (0-23)", updatedAt: new Date() },
-    { key: "scraper_ativo", value: "true", description: "Scraper automático ativo", updatedAt: new Date() },
-    { key: "ml_keywords_min_match", value: "2", description: "Mínimo de keywords para validar produto", updatedAt: new Date() },
-    { key: "ml_search_limit", value: "50", description: "Limite de resultados por busca no ML", updatedAt: new Date() },
-    { key: "alert_email_ativo", value: "true", description: "Alertas por email ativos", updatedAt: new Date() },
+    { key: "margem_percent", value: "60", description: "Margem mínima de preço (%)" },
+    { key: "scraper_hora", value: "14", description: "Hora de execução do scraper (0-23)" },
+    { key: "scraper_ativo", value: "true", description: "Scraper automático ativo" },
+    { key: "ml_keywords_min_match", value: "2", description: "Mínimo de keywords para validar produto" },
+    { key: "ml_search_limit", value: "50", description: "Limite de resultados por busca no ML" },
+    { key: "alert_email_ativo", value: "true", description: "Alertas por email ativos" },
   ];
   for (const s of defaults) {
     const existing = await getSetting(s.key);
@@ -360,7 +347,7 @@ export async function initDefaultSettings() {
   }
 }
 
-// ─── Clientes ─────────────────────────────────────────────────────────────────
+// ─── v2: Clientes ─────────────────────────────────────────────────────────────
 export async function getClientes() {
   const db = await getDb();
   if (!db) return [];
@@ -377,9 +364,8 @@ export async function getClienteById(id: number) {
 export async function upsertCliente(data: InsertCliente) {
   const db = await getDb();
   if (!db) return;
-  const now = new Date();
-  await db.insert(clientes).values({ ...data, createdAt: now, updatedAt: now }).onDuplicateKeyUpdate({
-    set: { nome: data.nome, lojaML: data.lojaML, linkLoja: data.linkLoja, status: data.status, updatedAt: now },
+  await db.insert(clientes).values(data).onDuplicateKeyUpdate({
+    set: { nome: data.nome, lojaML: data.lojaML, status: data.status, updatedAt: new Date() },
   });
 }
 
@@ -389,11 +375,11 @@ export async function deleteCliente(id: number) {
   await db.delete(clientes).where(eq(clientes.id, id));
 }
 
-// ─── Vendedores ───────────────────────────────────────────────────────────────
-export async function getVendedores(opts?: { limit?: number; offset?: number; orderBy?: "total_violacoes" | "total_anuncios" }) {
+// ─── v2: Vendedores ───────────────────────────────────────────────────────────
+export async function getVendedores(opts?: { limit?: number; offset?: number; orderBy?: "totalViolacoes" | "totalAnuncios" }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
-  const orderCol = opts?.orderBy === "total_anuncios" ? vendedores.totalAnuncios : vendedores.totalViolacoes;
+  const orderCol = opts?.orderBy === "totalAnuncios" ? vendedores.totalAnuncios : vendedores.totalViolacoes;
   const [items, totalRows] = await Promise.all([
     db.select({ v: vendedores, c: clientes })
       .from(vendedores)
@@ -419,7 +405,7 @@ export async function getViolationsByCliente(clienteId: number, limit = 20) {
     .limit(limit);
 }
 
-// ─── Histórico de Preços ──────────────────────────────────────────────────────
+// ─── v2: Histórico de Preços ──────────────────────────────────────────────────
 export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?: string; days?: number }) {
   const db = await getDb();
   if (!db) return [];

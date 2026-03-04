@@ -3,39 +3,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Settings as SettingsIcon, Save } from "lucide-react";
+import { Settings as SettingsIcon, Save, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-const SETTING_LABELS: Record<string, { label: string; description: string; type: "number" | "boolean" | "text" }> = {
-  margemPercent: { label: "Margem Mínima (%)", description: "Percentual de margem aplicado sobre o preço de custo para calcular o preço mínimo de venda", type: "number" },
-  scraper_hora: { label: "Hora de Execução (0–23)", description: "Hora do dia em que o scraper executa automaticamente (formato 24h)", type: "number" },
-  scraper_ativo: { label: "Scraper Automático Ativo", description: "Ativa ou desativa a execução automática diária do monitoramento", type: "boolean" },
-  ml_keywords_min_match: { label: "Mínimo de Keywords para Validar", description: "Número mínimo de keywords do produto que devem aparecer no título do anúncio para ser considerado válido", type: "number" },
-  ml_search_limit: { label: "Limite de Resultados por Busca", description: "Quantidade máxima de anúncios retornados por busca no Mercado Livre", type: "number" },
-  alert_email_ativo: { label: "Alertas por Email Ativos", description: "Ativa ou desativa o envio de notificações quando violações são detectadas", type: "boolean" },
+const SETTING_LABELS: Record<string, { label: string; description: string; type: "number" | "boolean" | "text"; unit?: string; min?: number; max?: number }> = {
+  margem_percent:        { label: "Margem Mínima (%)", description: "Percentual aplicado sobre o custo para calcular o preço mínimo de venda", type: "number", unit: "%", min: 1, max: 500 },
+  scraper_hora:          { label: "Hora de Execução (0–23)", description: "Hora do dia em que o scraper executa automaticamente (formato 24h)", type: "number", unit: "h", min: 0, max: 23 },
+  scraper_ativo:         { label: "Scraper Automático Ativo", description: "Ativa ou desativa a execução automática diária do monitoramento", type: "boolean" },
+  ml_keywords_min_match: { label: "Mínimo de Keywords para Validar", description: "Número mínimo de keywords do produto que devem aparecer no título do anúncio", type: "number", min: 1, max: 10 },
+  ml_search_limit:       { label: "Limite de Resultados por Busca", description: "Quantidade máxima de anúncios retornados por busca no Mercado Livre", type: "number", min: 10, max: 200 },
+  alert_email_ativo:     { label: "Alertas por Email Ativos", description: "Ativa ou desativa o envio de notificações quando violações são detectadas", type: "boolean" },
+};
+
+const DEFAULTS: Record<string, string> = {
+  margem_percent: "60",
+  scraper_hora: "14",
+  scraper_ativo: "true",
+  ml_keywords_min_match: "2",
+  ml_search_limit: "50",
+  alert_email_ativo: "true",
 };
 
 export default function Settings() {
-  const { data: settings, refetch } = trpc.settings.getAll.useQuery();
-  const [values, setValues] = useState<Record<string, string>>({});
+  const { data: settings, refetch, isLoading } = trpc.settings.getAll.useQuery();
+  const [values, setValues] = useState<Record<string, string>>(DEFAULTS);
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const initSettings = trpc.settings.init.useMutation({
     onSuccess: () => { toast.success("Configurações padrão inicializadas!"); refetch(); },
-    onError: (err) => toast.error(err.message || "Erro ao inicializar."),
   });
 
   const updateSetting = trpc.settings.update.useMutation({
-    onSuccess: () => { toast.success("Configuração salva!"); refetch(); setDirty(false); },
-    onError: (err) => toast.error(err.message || "Erro ao salvar."),
+    onError: (e) => toast.error("Erro ao salvar: " + e.message),
   });
 
+  // Populate values when settings load
   useEffect(() => {
-    if (settings) {
-      const map: Record<string, string> = {};
+    if (settings && settings.length > 0) {
+      const map: Record<string, string> = { ...DEFAULTS };
       settings.forEach((s) => { map[s.key] = s.value; });
       setValues(map);
+      setDirty(false);
     }
   }, [settings]);
 
@@ -45,15 +55,29 @@ export default function Settings() {
   };
 
   const handleSaveAll = async () => {
-    for (const [key, value] of Object.entries(values)) {
-      await updateSetting.mutateAsync({ key, value });
+    setSaving(true);
+    try {
+      for (const [key, value] of Object.entries(values)) {
+        if (SETTING_LABELS[key]) {
+          await updateSetting.mutateAsync({ key, value });
+        }
+      }
+      toast.success("Configurações salvas! Preços recalculados.");
+      refetch();
+      setDirty(false);
+    } catch {
+      // error handled in mutation
+    } finally {
+      setSaving(false);
     }
   };
 
-  const settingKeys = Object.keys(SETTING_LABELS);
+  const margemValue = parseFloat(values["margem_percent"] || "60");
+  const exemploMinimo = isNaN(margemValue) ? "—" : (100 * (1 + margemValue / 100)).toFixed(2);
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -63,106 +87,112 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground mt-1">Ajuste os parâmetros do sistema de monitoramento</p>
         </div>
         <div className="flex gap-2">
-          {!settings?.length && (
+          {(!settings || settings.length === 0) && !isLoading && (
             <Button variant="outline" size="sm" onClick={() => initSettings.mutate()}>
               Inicializar Padrões
             </Button>
           )}
-          <Button onClick={handleSaveAll} disabled={!dirty || updateSetting.isPending} className="gap-2">
-            <Save className="h-4 w-4" />
+          <Button onClick={handleSaveAll} disabled={!dirty || saving} className="gap-2">
+            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Salvar Tudo
           </Button>
         </div>
       </div>
 
-      {/* Settings Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Pricing Settings */}
+        {/* ── Configurações de Preço ─────────────────────── */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">Configurações de Preço</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {["margem_percent"].map((key) => {
-              const meta = SETTING_LABELS[key];
-              if (!meta) return null;
-              return (
-                <div key={key} className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{meta.label}</label>
-                  <p className="text-xs text-muted-foreground">{meta.description}</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={values[key] ?? "60"}
-                      onChange={(e) => handleChange(key, e.target.value)}
-                      className="bg-background border-border w-32"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                  {values[key] && (
-                    <p className="text-xs text-green-400">
-                      Exemplo: Custo R$ 100 → Mínimo R$ {(100 * (1 + parseFloat(values[key]) / 100)).toFixed(2)}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                {SETTING_LABELS["margem_percent"].label}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {SETTING_LABELS["margem_percent"].description}
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={values["margem_percent"]}
+                  onChange={(e) => handleChange("margem_percent", e.target.value)}
+                  className="bg-background border-border w-32"
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+              <p className="text-xs text-green-400">
+                Exemplo: Custo R$ 100,00 → Mínimo R$ {exemploMinimo}
+              </p>
+              <p className="text-xs text-yellow-400/80">
+                ⚠️ Ao salvar, o preço mínimo de todos os {531} produtos será recalculado automaticamente.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Scraper Settings */}
+        {/* ── Configurações do Scraper ───────────────────── */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">Configurações do Scraper</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {["scraper_hora", "scraper_ativo"].map((key) => {
-              const meta = SETTING_LABELS[key];
-              if (!meta) return null;
-              return (
-                <div key={key} className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{meta.label}</label>
-                  <p className="text-xs text-muted-foreground">{meta.description}</p>
-                  {meta.type === "boolean" ? (
-                    <Switch
-                      checked={values[key] === "true"}
-                      onCheckedChange={(v) => handleChange(key, v ? "true" : "false")}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={23}
-                        value={values[key] ?? "14"}
-                        onChange={(e) => handleChange(key, e.target.value)}
-                        className="bg-background border-border w-24"
-                      />
-                      <span className="text-xs text-muted-foreground">h (horário de Brasília)</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {/* Hora */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                {SETTING_LABELS["scraper_hora"].label}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {SETTING_LABELS["scraper_hora"].description}
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={values["scraper_hora"]}
+                  onChange={(e) => handleChange("scraper_hora", e.target.value)}
+                  className="bg-background border-border w-24"
+                />
+                <span className="text-xs text-muted-foreground">h (horário de Brasília)</span>
+              </div>
+            </div>
+            {/* Ativo */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                {SETTING_LABELS["scraper_ativo"].label}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {SETTING_LABELS["scraper_ativo"].description}
+              </p>
+              <Switch
+                checked={values["scraper_ativo"] === "true"}
+                onCheckedChange={(v) => handleChange("scraper_ativo", v ? "true" : "false")}
+              />
+            </div>
           </CardContent>
         </Card>
 
-        {/* ML Validation Settings */}
+        {/* ── Validação ML ───────────────────────────────── */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">Validação de Produtos (ML)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {["ml_keywords_min_match", "ml_search_limit"].map((key) => {
+            {(["ml_keywords_min_match", "ml_search_limit"] as const).map((key) => {
               const meta = SETTING_LABELS[key];
-              if (!meta) return null;
               return (
                 <div key={key} className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{meta.label}</label>
                   <p className="text-xs text-muted-foreground">{meta.description}</p>
                   <Input
                     type="number"
-                    value={values[key] ?? ""}
+                    min={meta.min}
+                    max={meta.max}
+                    value={values[key]}
                     onChange={(e) => handleChange(key, e.target.value)}
                     className="bg-background border-border w-32"
                   />
@@ -172,31 +202,29 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Notification Settings */}
+        {/* ── Notificações ────────────────────────────────── */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">Notificações</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {["alert_email_ativo"].map((key) => {
-              const meta = SETTING_LABELS[key];
-              if (!meta) return null;
-              return (
-                <div key={key} className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{meta.label}</label>
-                  <p className="text-xs text-muted-foreground">{meta.description}</p>
-                  <Switch
-                    checked={values[key] === "true"}
-                    onCheckedChange={(v) => handleChange(key, v ? "true" : "false")}
-                  />
-                </div>
-              );
-            })}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                {SETTING_LABELS["alert_email_ativo"].label}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {SETTING_LABELS["alert_email_ativo"].description}
+              </p>
+              <Switch
+                checked={values["alert_email_ativo"] === "true"}
+                onCheckedChange={(v) => handleChange("alert_email_ativo", v ? "true" : "false")}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Raw Settings Table */}
+      {/* ── Tabela de todas as configs ─────────────────────── */}
       {settings && settings.length > 0 && (
         <Card className="border-border bg-card">
           <CardHeader className="pb-3">
@@ -223,10 +251,12 @@ export default function Settings() {
                         <span className="text-xs font-semibold text-foreground">{s.value}</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className="text-xs text-muted-foreground">{SETTING_LABELS[s.key]?.description ?? "—"}</span>
+                        <span className="text-xs text-muted-foreground">{s.description ?? "—"}</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className="text-xs text-muted-foreground">{new Date(s.updatedAt).toLocaleString("pt-BR")}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(s.updatedAt).toLocaleString("pt-BR")}
+                        </span>
                       </td>
                     </tr>
                   ))}
