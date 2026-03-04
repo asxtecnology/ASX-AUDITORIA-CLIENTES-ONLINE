@@ -18,7 +18,7 @@
 
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { getDb } from "./db";
+import { getDb, getSetting } from "./db";
 import {
   products,
   monitoringRuns,
@@ -32,6 +32,9 @@ import { notifyOwner } from "./_core/notification";
 
 const REQUEST_DELAY_MS = 3500; // Delay aumentado para evitar rate-limit do ML
 const MAX_RETRIES = 3;
+
+// Evita execuções concorrentes do scraper (manual vs agendado, etc.)
+let scraperInProgress = false;
 
 const SCRAPER_HEADERS = {
   "User-Agent":
@@ -165,8 +168,10 @@ function extractLumens(title: string): string | null {
 
 export function matchProduct(
   mlTitle: string,
-  catalog: CatalogItem[]
+  catalog: CatalogItem[],
+  options?: { minKeywordMatches?: number }
 ): MatchResult | null {
+  const minKeywordMatches = Math.max(0, options?.minKeywordMatches ?? 0);
   const titleUpper = mlTitle.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   // ── 1. Código ASX exato no título (ex: "ASX1007") — confiança 100 ──
@@ -194,6 +199,19 @@ export function matchProduct(
   );
   const foundWattage    = extractWattage(titleUpper);
   const foundLumens     = extractLumens(titleUpper);
+
+  // Setting: ml_keywords_min_match
+  // Exige um mínimo de sinais no título (linha, conector, watts, lumens)
+  // antes de aceitar qualquer match — reduz falsos positivos.
+  const keywordCount = [
+    foundLine,
+    foundConnector,
+    foundWattage,
+    foundLumens,
+  ].filter(Boolean).length;
+  if (minKeywordMatches > 0 && keywordCount < minKeywordMatches) {
+    return null;
+  }
 
   // Helper: verifica se a descrição do produto bate com a potência do título
   function wattageMatches(descricao: string): boolean {
@@ -410,29 +428,41 @@ async function scrapeStorePage(
 export async function runScraper(
   options: ScrapeOptions = {}
 ): Promise<{ runId: number; found: number; violations: number }> {
-  const db = await getDb();
-  if (!db) throw new Error("Banco de dados nao disponivel");
-
-  const triggeredBy = options.triggeredBy ?? "scheduled";
-  console.log(
-    `[Scraper v3] Iniciando... triggeredBy=${triggeredBy}, clienteId=${options.clienteId ?? "todos"}`
-  );
-
-  // Criar registro de execucao
-  const runInsert = await db.insert(monitoringRuns).values({
-    status: "running",
-    triggeredBy: triggeredBy,
-    clienteId: options.clienteId ?? null,
-    plataforma: "mercadolivre",
-  }).$returningId();
-  const runId = runInsert[0]?.id as number;
-
-  let totalFound = 0;
-  let totalViolations = 0;
-  const seenItemIds = new Set<string>();
-  const dbErrors: string[] = [];
+  if (scraperInProgress) {
+    throw new Error("Monitoramento já em execução.");
+  }
+  scraperInProgress = true;
 
   try {
+    const db = await getDb();
+    if (!db) throw new Error("Banco de dados nao disponivel");
+
+    const triggeredBy = options.triggeredBy ?? "scheduled";
+    console.log(
+      `[Scraper v3] Iniciando... triggeredBy=${triggeredBy}, clienteId=${options.clienteId ?? "todos"}`
+    );
+
+    // Criar registro de execucao
+    const runInsert = await db
+      .insert(monitoringRuns)
+      .values({
+        status: "running",
+        triggeredBy: triggeredBy,
+        clienteId: options.clienteId ?? null,
+        plataforma: "mercadolivre",
+      })
+      .$returningId();
+    const runId = Number((runInsert as any)?.[0]?.id);
+    if (!Number.isFinite(runId) || runId <= 0) {
+      throw new Error("Falha ao criar registro da execução (monitoring_runs)");
+    }
+
+    let totalFound = 0;
+    let totalViolations = 0;
+    const seenItemIds = new Set<string>();
+    const dbErrors: string[] = [];
+
+    try {
     // Carregar catalogo ativo
     const catalog = await db
       .select({
@@ -446,6 +476,27 @@ export async function runScraper(
       .where(eq(products.ativo, true));
 
     if (catalog.length === 0) throw new Error("Catalogo vazio");
+
+    // Settings (via app_settings)
+    const minKeywordMatchesSetting = Number.parseInt(
+      (await getSetting("ml_keywords_min_match")) ?? "0",
+      10
+    );
+    const minKeywordMatches = Number.isFinite(minKeywordMatchesSetting)
+      ? Math.max(0, Math.min(10, minKeywordMatchesSetting))
+      : 0;
+
+    const mlSearchLimitSetting = Number.parseInt(
+      (await getSetting("ml_search_limit")) ?? "50",
+      10
+    );
+    const mlSearchLimit = Number.isFinite(mlSearchLimitSetting)
+      ? Math.max(1, Math.min(500, mlSearchLimitSetting))
+      : 50;
+
+    console.log(
+      `[Scraper v3] Settings: ml_keywords_min_match=${minKeywordMatches}, ml_search_limit=${mlSearchLimit}`
+    );
 
     // Carregar clientes ativos
     const clientesList = options.clienteId
@@ -483,10 +534,13 @@ export async function runScraper(
         if (items.length === 0) break;
 
         for (const item of items) {
+          if (!item.mlbId) continue;
           if (seenItemIds.has(item.mlbId)) continue;
-          if (item.mlbId) seenItemIds.add(item.mlbId);
+          seenItemIds.add(item.mlbId);
 
-          const matchResult = matchProduct(item.title, catalog);
+          const matchResult = matchProduct(item.title, catalog, {
+            minKeywordMatches,
+          });
           if (!matchResult || matchResult.confianca < 50) continue;
 
           clienteFound++;
@@ -642,6 +696,7 @@ export async function runScraper(
         const fase2Items: Array<{title: string; price: number; mlbId: string; href: string; sellerEl: string; sellerLink: string; thumbnail: string}> = [];
 
         $('li.ui-search-layout__item').each((_: number, card: any) => {
+          if (fase2Items.length >= mlSearchLimit) return false;
           const $card = $(card);
           const title =
             $card.find(".poly-component__title").text().trim() ||
@@ -658,8 +713,9 @@ export async function runScraper(
           const href = $card.find("a[href]").first().attr("href") || "";
           const mlbMatch = href.match(/(MLB\d+)/);
           const mlbId = mlbMatch ? mlbMatch[1] : "";
+          if (!mlbId) return;
           if (seenItemIds.has(mlbId)) return;
-          if (mlbId) seenItemIds.add(mlbId);
+          seenItemIds.add(mlbId);
 
           // Extrair nome do vendedor de múltiplos seletores
           const sellerEl =
@@ -683,7 +739,9 @@ export async function runScraper(
         });
 
         for (const item of fase2Items) {
-          const matchResult = matchProduct(item.title, catalog);
+          const matchResult = matchProduct(item.title, catalog, {
+            minKeywordMatches,
+          });
           if (!matchResult || matchResult.confianca < 70) continue;
 
           totalFound++;
@@ -789,18 +847,23 @@ export async function runScraper(
       }).catch(() => {});
     }
 
-    return { runId, found: totalFound, violations: totalViolations };
-  } catch (err: any) {
-    console.error("[Scraper v3] Erro fatal:", err.message);
-    await db
-      .update(monitoringRuns)
-      .set({
-        status: "failed" as const,
-        finishedAt: new Date(),
-        errorMessage: err.message,
-      })
-      .where(eq(monitoringRuns.id, runId));
-    throw err;
+      return { runId, found: totalFound, violations: totalViolations };
+    } catch (err: any) {
+      console.error("[Scraper v3] Erro fatal:", err.message);
+      if (runId) {
+        await db
+          .update(monitoringRuns)
+          .set({
+            status: "failed" as const,
+            finishedAt: new Date(),
+            errorMessage: err.message,
+          })
+          .where(eq(monitoringRuns.id, runId));
+      }
+      throw err;
+    }
+  } finally {
+    scraperInProgress = false;
   }
 }
 
@@ -821,30 +884,184 @@ export async function runMonitoring(
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function startScheduler() {
-  scheduleNext();
-  console.log("[Scheduler v3] Agendador iniciado - execucao diaria as 14:00");
+  // Evita timers duplicados quando startScheduler é chamado mais de uma vez
+  stopScheduler();
+  void scheduleNext();
 }
 
-function scheduleNext() {
-  const now = new Date();
-  const next = new Date();
-  next.setHours(14, 0, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
+async function loadSchedulerConfig(): Promise<{ active: boolean; hour: number }> {
+  // Sem banco não tem como ler settings => não agenda.
+  const db = await getDb();
+  if (!db) {
+    console.warn(
+      "[Scheduler v3] Banco de dados indisponível. Agendador não será iniciado."
+    );
+    return { active: false, hour: 14 };
+  }
 
-  const delay = next.getTime() - now.getTime();
+  const [ativoRaw, horaRaw] = await Promise.all([
+    getSetting("scraper_ativo"),
+    getSetting("scraper_hora"),
+  ]);
+
+  const active = (ativoRaw ?? "true").toLowerCase() === "true";
+  const parsedHour = Number.parseInt(horaRaw ?? "14", 10);
+  const hour = Number.isFinite(parsedHour)
+    ? Math.min(23, Math.max(0, parsedHour))
+    : 14;
+
+  return { active, hour };
+}
+
+function getOffsetMinutes(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const tzName =
+    dtf.formatToParts(date).find((p) => p.type === "timeZoneName")?.value ??
+    "";
+  const m = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!m) return 0;
+  const sign = m[1] === "-" ? -1 : 1;
+  const hh = Number.parseInt(m[2], 10);
+  const mm = m[3] ? Number.parseInt(m[3], 10) : 0;
+  return sign * (hh * 60 + mm);
+}
+
+function getZonedParts(date: Date, timeZone: string) {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(date);
+  const map = Object.fromEntries(
+    parts
+      .filter((p) => p.type !== "literal")
+      .map((p) => [p.type, p.value])
+  ) as Record<string, string>;
+  return {
+    year: Number.parseInt(map.year, 10),
+    month: Number.parseInt(map.month, 10),
+    day: Number.parseInt(map.day, 10),
+    hour: Number.parseInt(map.hour, 10),
+    minute: Number.parseInt(map.minute, 10),
+    second: Number.parseInt(map.second, 10),
+  };
+}
+
+function zonedDateTimeToUtcMs(opts: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  timeZone: string;
+}) {
+  const baseUtc = Date.UTC(
+    opts.year,
+    opts.month - 1,
+    opts.day,
+    opts.hour,
+    opts.minute,
+    opts.second,
+    0
+  );
+
+  // Ajuste de offset (pode variar com DST). Fazemos algumas iterações para estabilizar.
+  let utc = baseUtc;
+  for (let i = 0; i < 3; i++) {
+    const offsetMinutes = getOffsetMinutes(new Date(utc), opts.timeZone);
+    const corrected = baseUtc - offsetMinutes * 60_000;
+    if (corrected === utc) break;
+    utc = corrected;
+  }
+  return utc;
+}
+
+function computeNextRun(hour: number, timeZone: string) {
+  const now = new Date();
+  const zonedNow = getZonedParts(now, timeZone);
+
+  // Candidato: hoje (no timezone alvo), às HH:00
+  let candidateUtcMs = zonedDateTimeToUtcMs({
+    year: zonedNow.year,
+    month: zonedNow.month,
+    day: zonedNow.day,
+    hour,
+    minute: 0,
+    second: 0,
+    timeZone,
+  });
+
+  if (candidateUtcMs <= now.getTime()) {
+    // Próximo dia (no calendário do timezone alvo)
+    const nextDayUtc =
+      Date.UTC(zonedNow.year, zonedNow.month - 1, zonedNow.day) + 86_400_000;
+    const nextDay = new Date(nextDayUtc);
+    candidateUtcMs = zonedDateTimeToUtcMs({
+      year: nextDay.getUTCFullYear(),
+      month: nextDay.getUTCMonth() + 1,
+      day: nextDay.getUTCDate(),
+      hour,
+      minute: 0,
+      second: 0,
+      timeZone,
+    });
+  }
+
+  return {
+    next: new Date(candidateUtcMs),
+    delayMs: candidateUtcMs - now.getTime(),
+  };
+}
+
+async function scheduleNext() {
+  const config = await loadSchedulerConfig();
+
+  const timeZone =
+    process.env.SCRAPER_TIMEZONE ||
+    process.env.APP_TIMEZONE ||
+    process.env.TZ ||
+    "America/Bahia";
+
+  if (!config.active) {
+    console.log(
+      "[Scheduler v3] Agendador desativado (scraper_ativo=false ou banco indisponível). Nenhuma execução será agendada."
+    );
+    schedulerTimer = null;
+    return;
+  }
+
+  const { next, delayMs } = computeNextRun(config.hour, timeZone);
+  const nextLocal = new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(next);
   console.log(
-    `[Scheduler v3] Proxima execucao em ${Math.round(delay / 60000)} minutos (${next.toLocaleString("pt-BR")})`
+    `[Scheduler v3] Agendador ativo (${timeZone}) - execução diária às ${String(config.hour).padStart(2, "0")}:00. Próxima em ${Math.round(delayMs / 60000)} minutos (${nextLocal})`
   );
 
   schedulerTimer = setTimeout(async () => {
     try {
       await runScraper({ triggeredBy: "scheduled" });
     } catch (err: any) {
-      console.error("[Scheduler v3] Erro na execucao agendada:", err.message);
+      console.error("[Scheduler v3] Erro na execução agendada:", err?.message ?? err);
     } finally {
-      scheduleNext();
+      void scheduleNext();
     }
-  }, delay);
+  }, delayMs);
 }
 
 export function stopScheduler() {

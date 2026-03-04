@@ -75,7 +75,14 @@ export async function getUserByOpenId(openId: string) {
 }
 
 // ─── Products ─────────────────────────────────────────────────────────────────
-export async function getProducts(opts?: { search?: string; ativo?: boolean; limit?: number; offset?: number }) {
+export async function getProducts(opts?: {
+  search?: string;
+  ativo?: boolean;
+  categoria?: string;
+  linha?: string;
+  limit?: number;
+  offset?: number;
+}) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const conditions = [];
@@ -83,6 +90,8 @@ export async function getProducts(opts?: { search?: string; ativo?: boolean; lim
     conditions.push(or(like(products.descricao, `%${opts.search}%`), like(products.codigo, `%${opts.search}%`)));
   }
   if (opts?.ativo !== undefined) conditions.push(eq(products.ativo, opts.ativo));
+  if (opts?.categoria) conditions.push(eq(products.categoria, opts.categoria));
+  if (opts?.linha) conditions.push(eq(products.linha, opts.linha));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [items, totalRows] = await Promise.all([
     db.select().from(products).where(where).orderBy(products.codigo).limit(opts?.limit ?? 50).offset(opts?.offset ?? 0),
@@ -112,6 +121,9 @@ export async function upsertProduct(product: InsertProduct) {
     set: {
       descricao: product.descricao,
       ean: product.ean,
+      categoria: product.categoria,
+      linha: product.linha,
+      ativo: product.ativo,
       precoCusto: product.precoCusto,
       precoMinimo: product.precoMinimo,
       margemPercent: product.margemPercent,
@@ -210,6 +222,9 @@ export async function getViolations(opts?: {
   status?: "open" | "notified" | "resolved";
   productId?: number;
   sellerId?: string;
+  clienteId?: number;
+  categoria?: string;
+  confiancaMin?: number;
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
@@ -221,8 +236,11 @@ export async function getViolations(opts?: {
   if (opts?.status) conditions.push(eq(violations.status, opts.status));
   if (opts?.productId) conditions.push(eq(violations.productId, opts.productId));
   if (opts?.sellerId) conditions.push(eq(violations.sellerId, opts.sellerId));
+  if (opts?.clienteId) conditions.push(eq(violations.clienteId, opts.clienteId));
+  if (opts?.confiancaMin !== undefined) conditions.push(gte(violations.confianca, opts.confiancaMin));
   if (opts?.dateFrom) conditions.push(gte(violations.detectedAt, opts.dateFrom));
   if (opts?.dateTo) conditions.push(lte(violations.detectedAt, opts.dateTo));
+  if (opts?.categoria) conditions.push(eq(products.categoria, opts.categoria));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [items, totalRows] = await Promise.all([
     db.select({ v: violations, p: products })
@@ -232,7 +250,11 @@ export async function getViolations(opts?: {
       .orderBy(desc(violations.detectedAt))
       .limit(opts?.limit ?? 50)
       .offset(opts?.offset ?? 0),
-    db.select({ count: count() }).from(violations).where(where),
+    db
+      .select({ count: count() })
+      .from(violations)
+      .leftJoin(products, eq(violations.productId, products.id))
+      .where(where),
   ]);
   return { items, total: Number(totalRows[0]?.count ?? 0) };
 }
@@ -281,8 +303,19 @@ export async function getViolationTrend(days = 30) {
           GROUP BY DATE(detectedAt)
           ORDER BY DATE(detectedAt)`
     );
-    const results = Array.isArray(rows) ? rows[0] : [];
-    return (results as any[]).map((r: any) => ({ date: String(r.date), count: Number(r.cnt) }));
+    // drizzle/mysql2 pode retornar tanto:
+    // - RowDataPacket[]
+    // - [RowDataPacket[], FieldPacket[]]
+    const results: any[] = Array.isArray(rows)
+      ? Array.isArray((rows as any)[0])
+        ? ((rows as any)[0] as any[])
+        : (rows as any[])
+      : [];
+
+    return results.map((r: any) => ({
+      date: String(r.date),
+      count: Number(r.cnt),
+    }));
   } catch (e) {
     console.error("[DB] getViolationTrend error:", e);
     return [];
@@ -365,7 +398,14 @@ export async function upsertCliente(data: InsertCliente) {
   const db = await getDb();
   if (!db) return;
   await db.insert(clientes).values(data).onDuplicateKeyUpdate({
-    set: { nome: data.nome, lojaML: data.lojaML, status: data.status, updatedAt: new Date() },
+    set: {
+      nome: data.nome,
+      sellerId: data.sellerId,
+      lojaML: data.lojaML,
+      linkLoja: data.linkLoja,
+      status: data.status,
+      updatedAt: new Date(),
+    },
   });
 }
 

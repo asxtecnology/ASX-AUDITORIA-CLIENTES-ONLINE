@@ -159,12 +159,12 @@ describe("matchProduct — confidence scoring", () => {
     expect(result!.metodoMatch).toBe("codigo");
   });
 
-  it("returns confidence 85 when ASX + line + bulb match", () => {
+  it("returns confidence 95 when ASX + line + bulb + watts match", () => {
     const result = matchProduct("KIT ULTRA LED ASX H7 70W 10000 LUMENS", catalog);
     expect(result).not.toBeNull();
-    expect(result!.confianca).toBe(85);
+    expect(result!.confianca).toBe(95);
     expect(result!.productId).toBe(1);
-    expect(result!.metodoMatch).toBe("linha_bulbo");
+    expect(result!.metodoMatch).toBe("linha_bulbo_watts");
   });
 
   it("returns confidence 70 when ASX + bulb match (no line)", () => {
@@ -172,7 +172,7 @@ describe("matchProduct — confidence scoring", () => {
     expect(result).not.toBeNull();
     expect(result!.confianca).toBe(70);
     expect(result!.productId).toBe(2);
-    expect(result!.metodoMatch).toBe("marca_bulbo");
+    expect(result!.metodoMatch).toBe("bulbo");
   });
 
   it("returns confidence 50 when only ASX keyword found", () => {
@@ -198,10 +198,10 @@ describe("matchProduct — confidence scoring", () => {
     expect(result!.confianca).toBe(100);
   });
 
-  it("matches SUPER LED + H11 with confidence 85", () => {
+  it("matches SUPER LED + H11 with confidence 95", () => {
     const result = matchProduct("KIT SUPER LED ASX H11 40W FAROL", catalog);
     expect(result).not.toBeNull();
-    expect(result!.confianca).toBe(85);
+    expect(result!.confianca).toBe(95);
     expect(result!.productId).toBe(3);
   });
 });

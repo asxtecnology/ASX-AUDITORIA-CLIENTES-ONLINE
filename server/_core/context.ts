@@ -1,6 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
-// import { sdk } from "./sdk";  // OAuth desabilitado temporariamente
+import { sdk } from "./sdk";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -24,13 +24,27 @@ const DEV_USER: User = {
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
-  // TODO: Restaurar OAuth quando configurado:
-  // let user: User | null = null;
-  // try { user = await sdk.authenticateRequest(opts.req); } catch { user = null; }
+  // ✅ Segurança: em PRODUÇÃO nunca use um usuário hardcoded.
+  // ✅ Dev UX: em desenvolvimento, se não houver sessão válida, usamos um fallback.
+  const allowDevBypass =
+    process.env.NODE_ENV !== "production" &&
+    process.env.DISABLE_DEV_AUTH_BYPASS !== "1" &&
+    process.env.DISABLE_DEV_AUTH_BYPASS !== "true";
+
+  let user: User | null = null;
+  try {
+    user = await sdk.authenticateRequest(opts.req);
+  } catch {
+    user = null;
+  }
+
+  if (!user && allowDevBypass) {
+    user = DEV_USER;
+  }
 
   return {
     req: opts.req,
     res: opts.res,
-    user: DEV_USER,
+    user,
   };
 }

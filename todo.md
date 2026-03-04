@@ -174,3 +174,10 @@
 - [ ] Auditar tabelas existentes no Supabase
 - [ ] Criar tabelas faltantes (violations, monitoring_runs, etc.)
 - [ ] Confirmar que todas as tabelas existem
+
+## Patch asx-price-monitor-fixes.patch
+- [x] Aplicar patch via git apply ou manualmente
+- [x] Reiniciar servidor após patch
+- [x] Atualizar testes vitest (confiança 85→95 para linha_bulbo_watts, metodoMatch bulbo)
+- [x] 24/24 testes passando, 0 erros TypeScript
+- [ ] Testar 'Verificar Agora' na TECNO AUDIO (requer produção - ML bloqueia sandbox)

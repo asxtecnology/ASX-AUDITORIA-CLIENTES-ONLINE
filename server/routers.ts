@@ -33,23 +33,39 @@ import {
   getHistoricoPrecos,
   recalculateAllProductPrices,
 } from "./db";
-import { runScraper, runMonitoring } from "./mlScraper";
+import { runScraper, startScheduler } from "./mlScraper";
 import { TRPCError } from "@trpc/server";
 
 // Rate Limiter (in-memory, per-server)
 const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutos entre execucoes
-let lastRunTime = 0;
+let lastRunFinishedAt = 0;
+let runInProgress = false;
 
-function checkRunRateLimit() {
+function assertCanRun() {
   const now = Date.now();
-  if (now - lastRunTime < RATE_LIMIT_MS) {
-    const waitSecs = Math.ceil((RATE_LIMIT_MS - (now - lastRunTime)) / 1000);
+  if (runInProgress) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "Já existe um monitoramento em execução.",
+    });
+  }
+  if (now - lastRunFinishedAt < RATE_LIMIT_MS) {
+    const waitSecs = Math.ceil(
+      (RATE_LIMIT_MS - (now - lastRunFinishedAt)) / 1000
+    );
     throw new TRPCError({
       code: "TOO_MANY_REQUESTS",
       message: `Aguarde ${waitSecs}s antes de executar novamente.`,
     });
   }
-  lastRunTime = now;
+  runInProgress = true;
+}
+
+function markRunFinished(success: boolean) {
+  runInProgress = false;
+  if (success) {
+    lastRunFinishedAt = Date.now();
+  }
 }
 
 // Products Router
@@ -124,9 +140,26 @@ const productsRouter = router({
 const monitoringRouter = router({
   runNow: protectedProcedure
     .input(z.object({ clienteId: z.number().optional() }).optional())
-    .mutation(({ input }) => {
-      checkRunRateLimit();
-      return runScraper({ triggeredBy: "manual", clienteId: input?.clienteId });
+    .mutation(async ({ input }) => {
+      assertCanRun();
+      try {
+        const result = await runScraper({
+          triggeredBy: "manual",
+          clienteId: input?.clienteId,
+        });
+        markRunFinished(true);
+        return result;
+      } catch (err) {
+        markRunFinished(false);
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("já em execução") || message.includes("em execução")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message,
+          });
+        }
+        throw err;
+      }
     }),
 
   history: protectedProcedure
@@ -199,9 +232,26 @@ const clientesRouter = router({
 
   runCheck: protectedProcedure
     .input(z.object({ clienteId: z.number() }))
-    .mutation(({ input }) => {
-      checkRunRateLimit();
-      return runScraper({ triggeredBy: "manual", clienteId: input.clienteId });
+    .mutation(async ({ input }) => {
+      assertCanRun();
+      try {
+        const result = await runScraper({
+          triggeredBy: "manual",
+          clienteId: input.clienteId,
+        });
+        markRunFinished(true);
+        return result;
+      } catch (err) {
+        markRunFinished(false);
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("já em execução") || message.includes("em execução")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message,
+          });
+        }
+        throw err;
+      }
     }),
 });
 
@@ -258,6 +308,11 @@ const settingsRouter = router({
         if (!isNaN(margem) && margem > 0) {
           await recalculateAllProductPrices(margem);
         }
+      }
+
+      // Mudanças no agendador devem refletir imediatamente.
+      if (input.key === "scraper_ativo" || input.key === "scraper_hora") {
+        startScheduler();
       }
       return { ok: true };
     }),
