@@ -31,10 +31,9 @@ let _db: ReturnType<typeof drizzle> | null = null;
 let _client: ReturnType<typeof postgres> | null = null;
 
 export async function getDb() {
-  const dbUrl = process.env.SUPABASE_URL || process.env.DATABASE_URL;
-  if (!_db && dbUrl && dbUrl.startsWith('postgresql')) {
+  if (!_db && process.env.DATABASE_URL) {
     try {
-      _client = postgres(dbUrl, {
+      _client = postgres(process.env.DATABASE_URL, {
         max: 10,
         idle_timeout: 20,
         connect_timeout: 10,
@@ -124,6 +123,7 @@ export async function upsertProduct(product: InsertProduct) {
       precoCusto: product.precoCusto,
       precoMinimo: product.precoMinimo,
       margemPercent: product.margemPercent,
+      statusBase: product.statusBase,
       updatedAt: new Date(),
     },
   });
@@ -298,12 +298,11 @@ export async function upsertAlertConfig(data: InsertAlertConfig) {
   if (data.id) {
     // Update existing
     await db.update(alertConfigs).set({
-      emailsDestinatarios: data.emailsDestinatarios,
-      ativo: data.ativo,
-      frequencia: data.frequencia,
-      minViolacoes: data.minViolacoes,
-      incluirResumo: data.incluirResumo,
-      updatedAt: new Date(),
+      name: data.name,
+      email: data.email,
+      active: data.active,
+      notifyOnViolation: data.notifyOnViolation,
+      notifyOnRunComplete: data.notifyOnRunComplete,
     }).where(eq(alertConfigs.id, data.id));
   } else {
     // Insert new
@@ -334,7 +333,7 @@ export async function getAllSettings(): Promise<AppSetting[]> {
 export async function upsertSetting(key: string, value: string, description?: string) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({
+  await db.insert(appSettings).values({ key, value, description }).onConflictDoUpdate({
     target: appSettings.key,
     set: { value, updatedAt: new Date() },
   });
@@ -342,16 +341,16 @@ export async function upsertSetting(key: string, value: string, description?: st
 
 export async function initDefaultSettings() {
   const defaults: InsertAppSetting[] = [
-    { key: "margem_percent", value: "60" },
-    { key: "scraper_hora", value: "14" },
-    { key: "scraper_ativo", value: "true" },
-    { key: "ml_keywords_min_match", value: "2" },
-    { key: "ml_search_limit", value: "50" },
-    { key: "alert_email_ativo", value: "true" },
+    { key: "margem_percent", value: "60", description: "Margem mínima de preço (%)" },
+    { key: "scraper_hora", value: "14", description: "Hora de execução do scraper (0-23)" },
+    { key: "scraper_ativo", value: "true", description: "Scraper automático ativo" },
+    { key: "ml_keywords_min_match", value: "2", description: "Mínimo de keywords para validar produto" },
+    { key: "ml_search_limit", value: "50", description: "Limite de resultados por busca no ML" },
+    { key: "alert_email_ativo", value: "true", description: "Alertas por email ativos" },
   ];
   for (const s of defaults) {
     const existing = await getSetting(s.key);
-    if (!existing) await upsertSetting(s.key, s.value);
+    if (!existing) await upsertSetting(s.key, s.value, s.description ?? undefined);
   }
 }
 
@@ -376,13 +375,14 @@ export async function upsertCliente(data: InsertCliente) {
     await db.update(clientes).set({
       nome: data.nome,
       lojaML: data.lojaML,
+      linkLoja: data.linkLoja,
       status: data.status,
       updatedAt: new Date(),
     }).where(eq(clientes.id, data.id));
   } else {
     await db.insert(clientes).values(data).onConflictDoUpdate({
       target: clientes.sellerId,
-      set: { nome: data.nome, lojaML: data.lojaML, status: data.status, updatedAt: new Date() },
+      set: { nome: data.nome, lojaML: data.lojaML, linkLoja: data.linkLoja, status: data.status, updatedAt: new Date() },
     });
   }
 }
@@ -420,10 +420,10 @@ export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?:
   if (opts?.days) {
     const since = new Date();
     since.setDate(since.getDate() - opts.days);
-    conditions.push(gte(historicoPrecosTable.dataCaptura, since.toISOString().split('T')[0]));
+    conditions.push(gte(historicoPrecosTable.createdAt, since));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.dataCaptura)).limit(200);
+  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.createdAt)).limit(200);
 }
 
 // ─── Violações por Cliente ────────────────────────────────────────────────────

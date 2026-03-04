@@ -107,3 +107,16 @@
 - [x] Configurar SUPABASE_URL como variável de ambiente
 - [x] 24/24 testes vitest passando
 - [x] 0 erros TypeScript
+
+## ZIP v4 Final (22 arquivos Claude)
+- [x] Corrigir bug crítico: ONE_YEAR_MS → SESSION_MAX_AGE_MS (sdk.ts + const.ts)
+- [x] Aplicar mlScraper.ts v2 (async correto, .returning(), error handling)
+- [x] Aplicar server/db.ts atualizado
+- [x] Aplicar server/routers.ts (rate limiter, adminProcedure)
+- [x] Aplicar server/asx.test.ts (+14 testes)
+- [x] Aplicar shared/const.ts (SESSION_MAX_AGE_MS)
+- [x] Aplicar client/src/lib/format.ts (novo utilitário)
+- [x] Aplicar client/src/hooks/useAdmin.ts (novo hook)
+- [x] Aplicar páginas frontend (Dashboard, Violations, Catalog, Clientes, Vendedores, Settings, Alerts)
+- [x] Corrigir History.tsx (totalFound → productsFound, totalViolations → violationsFound)
+- [x] 24/24 testes vitest passando, 0 erros TypeScript

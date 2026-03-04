@@ -223,7 +223,7 @@ export default function Settings() {
                         <span className="text-xs font-semibold text-foreground">{s.value}</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className="text-xs text-muted-foreground">{SETTING_LABELS[s.key]?.description ?? "—"}</span>
+                        <span className="text-xs text-muted-foreground">{s.description ?? "—"}</span>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="text-xs text-muted-foreground">{new Date(s.updatedAt).toLocaleString("pt-BR")}</span>

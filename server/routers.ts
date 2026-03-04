@@ -108,7 +108,9 @@ const productsRouter = router({
         try {
           await upsertProduct({
             ...p,
+            caixa: p.caixa ?? null,
             margemPercent: p.margemPercent ?? "60.00",
+            statusBase: p.statusBase ?? "ATIVO",
           });
           imported++;
         } catch {
@@ -235,11 +237,11 @@ const alertsRouter = router({
   upsert: protectedProcedure
     .input(z.object({
       id: z.number().optional(),
-      emailsDestinatarios: z.string().optional(),
-      ativo: z.boolean().default(true),
-      frequencia: z.string().optional(),
-      minViolacoes: z.number().optional(),
-      incluirResumo: z.boolean().default(false),
+      email: z.string().email(),
+      name: z.string().optional(),
+      active: z.boolean().default(true),
+      notifyOnViolation: z.boolean().default(true),
+      notifyOnRunComplete: z.boolean().default(false),
     }))
     .mutation(({ input }) => upsertAlertConfig(input)),
 

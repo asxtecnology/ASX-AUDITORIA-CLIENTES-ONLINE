@@ -514,6 +514,7 @@ export async function runScraper(
         if (!html) continue;
 
         const $ = cheerio.load(html);
+        const fase2Items: Array<{title: string; price: number; mlbId: string; href: string; sellerEl: string; thumbnail: string}> = [];
 
         $('li.ui-search-layout__item').each((_: number, card: any) => {
           const $card = $(card);
@@ -541,69 +542,79 @@ export async function runScraper(
             $card.find("img").first().attr("data-src") ||
             "";
 
-          const matchResult = matchProduct(title, catalog);
-          if (!matchResult || matchResult.confianca < 70) return;
+          fase2Items.push({ title, price, mlbId, href, sellerEl, thumbnail });
+        });
+
+        // Process collected items with proper await
+        for (const item of fase2Items) {
+          const matchResult = matchProduct(item.title, catalog);
+          if (!matchResult || matchResult.confianca < 70) continue;
 
           totalFound++;
-          const isViolation = price < matchResult.precoMinimo;
+          const isViolation = item.price < matchResult.precoMinimo;
           if (isViolation) totalViolations++;
 
-          db.insert(priceSnapshots)
-            .values({
-              runId,
-              productId: matchResult.productId,
-              sellerName: sellerEl || "Vendedor Desconhecido",
-              sellerId: mlbId,
-              clienteId: null,
-              mlItemId: mlbId,
-              mlTitle: title,
-              mlUrl: href.split("#")[0],
-              mlThumbnail: thumbnail,
-              plataforma: "mercadolivre",
-              precoAnunciado: String(price),
-              precoMinimo: String(matchResult.precoMinimo),
-              isViolation,
-              validationReason: isViolation
-                ? `Vendedor não cadastrado — Preço R$${price.toFixed(2)} abaixo do mínimo R$${matchResult.precoMinimo.toFixed(2)}`
-                : "OK",
-              confianca: matchResult.confianca,
-              metodoMatch: matchResult.metodoMatch,
-            })
-            .catch((e: any) => {
-              dbErrors.push(`fase2_snapshot: ${e.message}`);
-              console.error("[DB] Fase 2 - Erro snapshot:", e.message);
-            });
-
-          if (isViolation) {
-            const diferenca = matchResult.precoMinimo - price;
-            const percentAbaixo = (diferenca / matchResult.precoMinimo) * 100;
-            db.insert(violations)
+          let snapshotId = 0;
+          try {
+            const [snap] = await db.insert(priceSnapshots)
               .values({
-                snapshotId: 0,
                 runId,
                 productId: matchResult.productId,
-                sellerName: sellerEl || "Vendedor Desconhecido",
-                sellerId: mlbId,
+                sellerName: item.sellerEl || "Vendedor Desconhecido",
+                sellerId: item.mlbId,
                 clienteId: null,
-                mlItemId: mlbId,
-                mlUrl: href.split("#")[0],
-                mlThumbnail: thumbnail,
-                mlTitle: title,
+                mlItemId: item.mlbId,
+                mlTitle: item.title,
+                mlUrl: item.href.split("#")[0],
+                mlThumbnail: item.thumbnail,
                 plataforma: "mercadolivre",
-                precoAnunciado: String(price),
+                precoAnunciado: String(item.price),
                 precoMinimo: String(matchResult.precoMinimo),
-                diferenca: String(diferenca.toFixed(2)),
-                percentAbaixo: String(percentAbaixo.toFixed(2)),
+                isViolation,
+                validationReason: isViolation
+                  ? `Vendedor não cadastrado — Preço R$${item.price.toFixed(2)} abaixo do mínimo R$${matchResult.precoMinimo.toFixed(2)}`
+                  : "OK",
                 confianca: matchResult.confianca,
                 metodoMatch: matchResult.metodoMatch,
-                status: "open",
               })
-              .catch((e: any) => {
-                dbErrors.push(`fase2_violation: ${e.message}`);
-                console.error("[DB] Fase 2 - Erro violação:", e.message);
-              });
+              .returning({ id: priceSnapshots.id });
+            snapshotId = snap.id;
+          } catch (e: any) {
+            dbErrors.push(`fase2_snapshot: ${e.message}`);
+            console.error("[DB] Fase 2 - Erro snapshot:", e.message);
           }
-        });
+
+          if (isViolation) {
+            const diferenca = matchResult.precoMinimo - item.price;
+            const percentAbaixo = (diferenca / matchResult.precoMinimo) * 100;
+            try {
+              await db.insert(violations)
+                .values({
+                  snapshotId,
+                  runId,
+                  productId: matchResult.productId,
+                  sellerName: item.sellerEl || "Vendedor Desconhecido",
+                  sellerId: item.mlbId,
+                  clienteId: null,
+                  mlItemId: item.mlbId,
+                  mlUrl: item.href.split("#")[0],
+                  mlThumbnail: item.thumbnail,
+                  mlTitle: item.title,
+                  plataforma: "mercadolivre",
+                  precoAnunciado: String(item.price),
+                  precoMinimo: String(matchResult.precoMinimo),
+                  diferenca: String(diferenca.toFixed(2)),
+                  percentAbaixo: String(percentAbaixo.toFixed(2)),
+                  confianca: matchResult.confianca,
+                  metodoMatch: matchResult.metodoMatch,
+                  status: "open",
+                });
+            } catch (e: any) {
+              dbErrors.push(`fase2_violation: ${e.message}`);
+              console.error("[DB] Fase 2 - Erro violação:", e.message);
+            }
+          }
+        }
       }
     }
 
@@ -614,8 +625,9 @@ export async function runScraper(
       .set({
         status: finalStatus,
         finishedAt: new Date(),
-        totalFound: totalFound,
-        totalViolations: totalViolations,
+        totalProducts: catalog.length,
+        productsFound: totalFound,
+        violationsFound: totalViolations,
         errorMessage: dbErrors.length > 0
           ? `${dbErrors.length} erros de DB: ${dbErrors.slice(0, 5).join("; ")}`
           : null,

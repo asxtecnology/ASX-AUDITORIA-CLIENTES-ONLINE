@@ -19,7 +19,7 @@ type Cliente = {
   nome: string;
   sellerId: string;
   lojaML: string | null;
-  linkLoja?: string | null;
+  linkLoja: string | null;
   status: "ativo" | "inativo";
   totalProdutos: number | null;
   totalViolacoes: number | null;
@@ -248,6 +248,7 @@ export default function Clientes() {
       nome: data.nome,
       sellerId: data.sellerId,
       lojaML: data.lojaML || undefined,
+      linkLoja: data.linkLoja || undefined,
       status: data.status,
     });
   };
