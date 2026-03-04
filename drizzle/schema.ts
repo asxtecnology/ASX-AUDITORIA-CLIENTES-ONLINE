@@ -20,6 +20,7 @@ export const statusViolationEnum = pgEnum("status_violation", ["open", "notified
 export const linhaEnum = pgEnum("linha", ["PREMIUM", "PLUS", "ECO"]);
 
 // ─── Users (auth) ────────────────────────────────────────────────────────────
+// Supabase columns: id, openId, name, email, loginMethod, role, createdAt, updatedAt, lastSignedIn
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -36,16 +37,19 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 // ─── Clientes Monitorados ─────────────────────────────────────────────────────
+// Supabase columns: id, nome, sellerId, lojaML, status, totalProdutos, totalViolacoes,
+//                   ultimaVerificacao, createdAt, updatedAt, email, telefone
 export const clientes = pgTable("clientes", {
   id: serial("id").primaryKey(),
   nome: varchar("nome", { length: 255 }).notNull(),
-  sellerId: varchar("seller_id", { length: 64 }).notNull().unique(),
-  lojaML: varchar("loja_ml", { length: 255 }),
-  linkLoja: text("link_loja"),
+  sellerId: varchar("sellerId", { length: 64 }).notNull().unique(),
+  lojaML: varchar("lojaML", { length: 255 }),
   status: statusClienteEnum("status").default("ativo").notNull(),
-  totalProdutos: integer("total_produtos").default(0),
-  totalViolacoes: integer("total_violacoes").default(0),
-  ultimaVerificacao: timestamp("ultima_verificacao"),
+  totalProdutos: integer("totalProdutos").default(0),
+  totalViolacoes: integer("totalViolacoes").default(0),
+  ultimaVerificacao: timestamp("ultimaVerificacao"),
+  email: varchar("email", { length: 320 }),
+  telefone: varchar("telefone", { length: 32 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
@@ -54,19 +58,17 @@ export type Cliente = typeof clientes.$inferSelect;
 export type InsertCliente = typeof clientes.$inferInsert;
 
 // ─── Products (ASX Catalog) ───────────────────────────────────────────────────
+// Supabase columns: id, codigo, descricao, ean, linha, categoria, ativo,
+//                   precoCusto, precoMinimo, margemPercent, createdAt, updatedAt
+// NOTE: unidade, caixa, voltagem, ncm, statusBase NOT in Supabase — omitted
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   codigo: varchar("codigo", { length: 32 }).notNull().unique(),
   descricao: text("descricao").notNull(),
   ean: varchar("ean", { length: 20 }),
-  unidade: varchar("unidade", { length: 10 }),
-  caixa: integer("caixa"),
-  voltagem: varchar("voltagem", { length: 20 }),
-  ncm: varchar("ncm", { length: 20 }),
-  precoCusto: numeric("preco_custo", { precision: 10, scale: 2 }).notNull(),
-  precoMinimo: numeric("preco_minimo", { precision: 10, scale: 2 }).notNull(),
-  margemPercent: numeric("margem_percent", { precision: 5, scale: 2 }).default("60.00").notNull(),
-  statusBase: varchar("status_base", { length: 20 }).default("ATIVO"),
+  precoCusto: numeric("precoCusto", { precision: 10, scale: 2 }),
+  precoMinimo: numeric("precoMinimo", { precision: 10, scale: 2 }).notNull(),
+  margemPercent: numeric("margemPercent", { precision: 5, scale: 2 }).default("60.00"),
   categoria: varchar("categoria", { length: 64 }),
   linha: linhaEnum("linha"),
   ativo: boolean("ativo").default(true).notNull(),
@@ -78,71 +80,82 @@ export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 
 // ─── Monitoring Runs ─────────────────────────────────────────────────────────
+// Supabase columns: id, startedAt, finishedAt, status, totalFound, totalViolations,
+//                   errorMessage, triggeredBy, plataforma, clienteId
 export const monitoringRuns = pgTable("monitoring_runs", {
   id: serial("id").primaryKey(),
-  startedAt: timestamp("started_at").defaultNow().notNull(),
-  finishedAt: timestamp("finished_at"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
   status: statusRunEnum("status").default("running").notNull(),
-  totalProducts: integer("total_products").default(0),
-  productsFound: integer("products_found").default(0),
-  violationsFound: integer("violations_found").default(0),
-  errorMessage: text("error_message"),
-  triggeredBy: triggeredByEnum("triggered_by").default("scheduled").notNull(),
+  totalFound: integer("totalFound").default(0),
+  totalViolations: integer("totalViolations").default(0),
+  errorMessage: text("errorMessage"),
+  triggeredBy: triggeredByEnum("triggeredBy").default("scheduled").notNull(),
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
-  clienteId: integer("cliente_id"),
+  clienteId: integer("clienteId"),
 });
 
 export type MonitoringRun = typeof monitoringRuns.$inferSelect;
 export type InsertMonitoringRun = typeof monitoringRuns.$inferInsert;
 
 // ─── Price Snapshots ─────────────────────────────────────────────────────────
+// Supabase columns: id, runId, productId, sellerName, sellerId, clienteId,
+//                   mlItemId, mlTitle, mlUrl, mlThumbnail, plataforma,
+//                   precoAnunciado, precoMinimo, isViolation, validationReason,
+//                   confianca, metodoMatch, capturedAt
 export const priceSnapshots = pgTable("price_snapshots", {
   id: serial("id").primaryKey(),
-  runId: integer("run_id").notNull(),
-  productId: integer("product_id").notNull(),
-  sellerName: varchar("seller_name", { length: 255 }).notNull(),
-  sellerId: varchar("seller_id", { length: 64 }),
-  clienteId: integer("cliente_id"),
-  mlItemId: varchar("ml_item_id", { length: 64 }),
-  mlTitle: text("ml_title"),
-  mlUrl: text("ml_url"),
-  mlThumbnail: text("ml_thumbnail"),
+  runId: integer("runId").notNull(),
+  productId: integer("productId").notNull(),
+  sellerName: varchar("sellerName", { length: 255 }).notNull(),
+  sellerId: varchar("sellerId", { length: 64 }),
+  clienteId: integer("clienteId"),
+  mlItemId: varchar("mlItemId", { length: 64 }),
+  mlTitle: text("mlTitle"),
+  mlUrl: text("mlUrl"),
+  mlThumbnail: text("mlThumbnail"),
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
-  precoAnunciado: numeric("preco_anunciado", { precision: 10, scale: 2 }).notNull(),
-  precoMinimo: numeric("preco_minimo", { precision: 10, scale: 2 }).notNull(),
-  isViolation: boolean("is_violation").default(false).notNull(),
-  validationReason: varchar("validation_reason", { length: 255 }),
+  precoAnunciado: numeric("precoAnunciado", { precision: 10, scale: 2 }).notNull(),
+  precoMinimo: numeric("precoMinimo", { precision: 10, scale: 2 }).notNull(),
+  isViolation: boolean("isViolation").default(false).notNull(),
+  validationReason: varchar("validationReason", { length: 255 }),
   confianca: integer("confianca").default(0),
-  metodoMatch: varchar("metodo_match", { length: 64 }),
-  capturedAt: timestamp("captured_at").defaultNow().notNull(),
+  metodoMatch: varchar("metodoMatch", { length: 64 }),
+  capturedAt: timestamp("capturedAt").defaultNow().notNull(),
 });
 
 export type PriceSnapshot = typeof priceSnapshots.$inferSelect;
 export type InsertPriceSnapshot = typeof priceSnapshots.$inferInsert;
 
 // ─── Violations ──────────────────────────────────────────────────────────────
+// Supabase columns: id, snapshotId, runId, productId, sellerName, sellerId,
+//                   clienteId, mlItemId, mlUrl, mlThumbnail, mlTitle, plataforma,
+//                   precoAnunciado, precoMinimo, diferenca, percentAbaixo,
+//                   confianca, metodoMatch, status, resolvedAt, resolvedBy,
+//                   detected_at, notes
 export const violations = pgTable("violations", {
   id: serial("id").primaryKey(),
-  snapshotId: integer("snapshot_id").notNull(),
-  runId: integer("run_id").notNull(),
-  productId: integer("product_id").notNull(),
-  sellerName: varchar("seller_name", { length: 255 }).notNull(),
-  sellerId: varchar("seller_id", { length: 64 }),
-  clienteId: integer("cliente_id"),
-  mlItemId: varchar("ml_item_id", { length: 64 }),
-  mlUrl: text("ml_url"),
-  mlThumbnail: text("ml_thumbnail"),
-  mlTitle: text("ml_title"),
+  snapshotId: integer("snapshotId").notNull(),
+  runId: integer("runId").notNull(),
+  productId: integer("productId").notNull(),
+  sellerName: varchar("sellerName", { length: 255 }).notNull(),
+  sellerId: varchar("sellerId", { length: 64 }),
+  clienteId: integer("clienteId"),
+  mlItemId: varchar("mlItemId", { length: 64 }),
+  mlUrl: text("mlUrl"),
+  mlThumbnail: text("mlThumbnail"),
+  mlTitle: text("mlTitle"),
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
-  precoAnunciado: numeric("preco_anunciado", { precision: 10, scale: 2 }).notNull(),
-  precoMinimo: numeric("preco_minimo", { precision: 10, scale: 2 }).notNull(),
+  precoAnunciado: numeric("precoAnunciado", { precision: 10, scale: 2 }).notNull(),
+  precoMinimo: numeric("precoMinimo", { precision: 10, scale: 2 }).notNull(),
   diferenca: numeric("diferenca", { precision: 10, scale: 2 }).notNull(),
-  percentAbaixo: numeric("percent_abaixo", { precision: 5, scale: 2 }).notNull(),
+  percentAbaixo: numeric("percentAbaixo", { precision: 5, scale: 2 }).notNull(),
   confianca: integer("confianca").default(0),
-  metodoMatch: varchar("metodo_match", { length: 64 }),
+  metodoMatch: varchar("metodoMatch", { length: 64 }),
   status: statusViolationEnum("status").default("open").notNull(),
-  notifiedAt: timestamp("notified_at"),
-  resolvedAt: timestamp("resolved_at"),
+  notes: text("notes"),
+  resolvedAt: timestamp("resolvedAt"),
+  resolvedBy: varchar("resolvedBy", { length: 255 }),
   detectedAt: timestamp("detected_at").defaultNow().notNull(),
 });
 
@@ -150,6 +163,7 @@ export type Violation = typeof violations.$inferSelect;
 export type InsertViolation = typeof violations.$inferInsert;
 
 // ─── Histórico de Preços ──────────────────────────────────────────────────────
+// Supabase columns: id, codigo_asx, plataforma, vendedor, item_id, preco, data_captura
 export const historicoPrecosTable = pgTable("historico_precos", {
   id: serial("id").primaryKey(),
   codigoAsx: varchar("codigo_asx", { length: 32 }).notNull(),
@@ -158,13 +172,14 @@ export const historicoPrecosTable = pgTable("historico_precos", {
   itemId: varchar("item_id", { length: 64 }),
   preco: numeric("preco", { precision: 10, scale: 2 }).notNull(),
   dataCaptura: date("data_captura").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type HistoricoPreco = typeof historicoPrecosTable.$inferSelect;
 export type InsertHistoricoPreco = typeof historicoPrecosTable.$inferInsert;
 
 // ─── Vendedores (ranking) ─────────────────────────────────────────────────────
+// Supabase columns: id, plataforma, vendedor_id, nome, cliente_id,
+//                   total_violacoes, total_anuncios, primeira_vez, ultima_vez
 export const vendedores = pgTable("vendedores", {
   id: serial("id").primaryKey(),
   plataforma: varchar("plataforma", { length: 32 }).notNull().default("mercadolivre"),
@@ -181,25 +196,29 @@ export type Vendedor = typeof vendedores.$inferSelect;
 export type InsertVendedor = typeof vendedores.$inferInsert;
 
 // ─── Alert Configurations ─────────────────────────────────────────────────────
+// Supabase columns: id, ativo, emailsDestinatarios, frequencia, incluirResumo,
+//                   minViolacoes, userId, createdAt, updatedAt
 export const alertConfigs = pgTable("alert_configs", {
   id: serial("id").primaryKey(),
-  email: varchar("email", { length: 320 }).notNull(),
-  name: varchar("name", { length: 255 }),
-  active: boolean("active").default(true).notNull(),
-  notifyOnViolation: boolean("notify_on_violation").default(true).notNull(),
-  notifyOnRunComplete: boolean("notify_on_run_complete").default(false).notNull(),
+  ativo: boolean("ativo").default(true).notNull(),
+  emailsDestinatarios: text("emailsDestinatarios"),
+  frequencia: varchar("frequencia", { length: 32 }).default("daily"),
+  incluirResumo: boolean("incluirResumo").default(true),
+  minViolacoes: integer("minViolacoes").default(1),
+  userId: integer("userId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
 export type AlertConfig = typeof alertConfigs.$inferSelect;
 export type InsertAlertConfig = typeof alertConfigs.$inferInsert;
 
 // ─── App Settings ─────────────────────────────────────────────────────────────
+// Supabase columns: id, key, value, updatedAt
 export const appSettings = pgTable("app_settings", {
   id: serial("id").primaryKey(),
   key: varchar("key", { length: 64 }).notNull().unique(),
   value: text("value").notNull(),
-  description: text("description"),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 

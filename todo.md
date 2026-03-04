@@ -132,3 +132,14 @@
 - [ ] Executar seed 002_seed_revendedores.sql no Supabase (manual - SQL Editor)
 - [x] 0 erros TypeScript
 - [x] 24/24 testes vitest passando
+
+## Correção de Schema (erros de query Supabase)
+- [x] Auditar colunas reais do Supabase (products, violations, monitoring_runs)
+- [x] Corrigir drizzle/schema.ts para mapear colunas reais
+- [x] Corrigir Alerts.tsx (active/name/email → ativo/emailsDestinatarios/incluirResumo)
+- [x] Corrigir Catalog.tsx (precoCusto pode ser null)
+- [x] Corrigir Settings.tsx (s.description → SETTING_LABELS[s.key]?.description)
+- [x] Corrigir Clientes.tsx (remover linkLoja, link via lojaML)
+- [x] Corrigir routers.ts (alerts upsert input → campos reais Supabase)
+- [x] 24/24 testes vitest passando
+- [x] 0 erros TypeScript
