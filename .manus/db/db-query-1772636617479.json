@@ -1,0 +1,43 @@
+{
+  "query": "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME;",
+  "rows": [
+    {
+      "TABLE_NAME": "__drizzle_migrations"
+    },
+    {
+      "TABLE_NAME": "alert_configs"
+    },
+    {
+      "TABLE_NAME": "app_settings"
+    },
+    {
+      "TABLE_NAME": "clientes"
+    },
+    {
+      "TABLE_NAME": "historico_precos"
+    },
+    {
+      "TABLE_NAME": "monitoring_runs"
+    },
+    {
+      "TABLE_NAME": "price_snapshots"
+    },
+    {
+      "TABLE_NAME": "products"
+    },
+    {
+      "TABLE_NAME": "users"
+    },
+    {
+      "TABLE_NAME": "vendedores"
+    },
+    {
+      "TABLE_NAME": "violations"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\n__drizzle_migrations\nalert_configs\napp_settings\nclientes\nhistorico_precos\nmonitoring_runs\nprice_snapshots\nproducts\nusers\nvendedores\nviolations\n",
+  "stderr": "",
+  "execution_time_ms": 51
+}

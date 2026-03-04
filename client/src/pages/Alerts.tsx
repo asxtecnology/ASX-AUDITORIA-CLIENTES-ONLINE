@@ -9,15 +9,14 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 export default function Alerts() {
-  const [newEmail, setNewEmail] = useState("");
-  const [newName, setNewName] = useState("");
-  const [notifyViolation, setNotifyViolation] = useState(true);
-  const [notifyComplete, setNotifyComplete] = useState(false);
+  const [newEmails, setNewEmails] = useState("");
+  const [minViolacoes, setMinViolacoes] = useState(1);
+  const [incluirResumo, setIncluirResumo] = useState(true);
 
   const { data: configs, refetch } = trpc.alerts.list.useQuery();
 
   const upsert = trpc.alerts.upsert.useMutation({
-    onSuccess: () => { toast.success("Alerta salvo!"); refetch(); setNewEmail(""); setNewName(""); },
+    onSuccess: () => { toast.success("Alerta salvo!"); refetch(); setNewEmails(""); },
     onError: (err) => toast.error(err.message || "Erro ao salvar alerta."),
   });
 
@@ -27,8 +26,14 @@ export default function Alerts() {
   });
 
   const handleAdd = () => {
-    if (!newEmail) { toast.error("Informe um email."); return; }
-    upsert.mutate({ email: newEmail, name: newName || undefined, active: true, notifyOnViolation: notifyViolation, notifyOnRunComplete: notifyComplete });
+    if (!newEmails) { toast.error("Informe ao menos um email."); return; }
+    upsert.mutate({
+      emailsDestinatarios: newEmails,
+      frequencia: "immediate",
+      minViolacoes,
+      incluirResumo,
+      ativo: true,
+    });
   };
 
   return (
@@ -36,10 +41,10 @@ export default function Alerts() {
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Bell className="h-6 w-6 text-yellow-400" />
-          Configuração de Alertas
+          Configuracao de Alertas
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Gerencie os destinatários de notificações automáticas por email
+          Gerencie os destinatarios de notificacoes automaticas por email
         </p>
       </div>
 
@@ -51,7 +56,7 @@ export default function Alerts() {
             <div>
               <p className="text-sm font-medium text-blue-400">Como funcionam os alertas</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Quando o monitoramento detectar violações de preço mínimo, os destinatários configurados abaixo receberão uma notificação automática via sistema. O monitoramento executa diariamente às 14h.
+                Quando o monitoramento detectar violacoes de preco minimo, os destinatarios configurados abaixo receberao uma notificacao automatica via sistema. O monitoramento executa diariamente as 14h.
               </p>
             </div>
           </div>
@@ -63,50 +68,44 @@ export default function Alerts() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Plus className="h-4 w-4 text-primary" />
-            Adicionar Destinatário
+            Adicionar Configuracao de Alerta
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Email *</label>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Emails destinatarios (separados por virgula) *</label>
               <Input
-                type="email"
-                placeholder="email@exemplo.com"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
+                type="text"
+                placeholder="email1@exemplo.com, email2@exemplo.com"
+                value={newEmails}
+                onChange={(e) => setNewEmails(e.target.value)}
                 className="bg-background border-border"
               />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Nome (opcional)</label>
-              <Input
-                placeholder="Nome do destinatário"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="bg-background border-border"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Minimo de violacoes para alertar</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={minViolacoes}
+                  onChange={(e) => setMinViolacoes(Number(e.target.value))}
+                  className="bg-background border-border"
+                />
+              </div>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex items-center gap-3">
-              <Switch checked={notifyViolation} onCheckedChange={setNotifyViolation} />
-              <div>
-                <p className="text-xs font-medium text-foreground">Notificar em violações</p>
-                <p className="text-xs text-muted-foreground">Alerta quando preço abaixo do mínimo</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Switch checked={notifyComplete} onCheckedChange={setNotifyComplete} />
-              <div>
-                <p className="text-xs font-medium text-foreground">Notificar ao concluir</p>
-                <p className="text-xs text-muted-foreground">Alerta ao fim de cada monitoramento</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <Switch checked={incluirResumo} onCheckedChange={setIncluirResumo} />
+            <div>
+              <p className="text-xs font-medium text-foreground">Incluir resumo</p>
+              <p className="text-xs text-muted-foreground">Enviar resumo detalhado das violacoes no alerta</p>
             </div>
           </div>
           <Button onClick={handleAdd} disabled={upsert.isPending} className="gap-2">
             <Plus className="h-4 w-4" />
-            Adicionar Destinatário
+            Adicionar Alerta
           </Button>
         </CardContent>
       </Card>
@@ -114,7 +113,7 @@ export default function Alerts() {
       {/* Existing Alerts */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Destinatários Configurados</CardTitle>
+          <CardTitle className="text-sm font-semibold">Alertas Configurados</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {configs && configs.length > 0 ? (
@@ -122,21 +121,20 @@ export default function Alerts() {
               {configs.map((cfg) => (
                 <div key={cfg.id} className="flex items-center justify-between px-4 py-3 hover:bg-accent/20 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className={`h-2 w-2 rounded-full ${cfg.active ? "bg-green-400" : "bg-muted-foreground"}`} />
+                    <div className={`h-2 w-2 rounded-full ${cfg.ativo ? "bg-green-400" : "bg-muted-foreground"}`} />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{cfg.name || cfg.email}</p>
-                      {cfg.name && <p className="text-xs text-muted-foreground">{cfg.email}</p>}
+                      <p className="text-sm font-medium text-foreground">{cfg.emailsDestinatarios || "Sem emails"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Min. {cfg.minViolacoes ?? 1} violacao(oes) | Frequencia: {cfg.frequencia ?? "immediate"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {cfg.notifyOnViolation && (
-                      <Badge className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30">Violações</Badge>
+                    {cfg.incluirResumo && (
+                      <Badge className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">Resumo</Badge>
                     )}
-                    {cfg.notifyOnRunComplete && (
-                      <Badge className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">Conclusão</Badge>
-                    )}
-                    <Badge className={`text-xs border ${cfg.active ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
-                      {cfg.active ? "Ativo" : "Inativo"}
+                    <Badge className={`text-xs border ${cfg.ativo ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
+                      {cfg.ativo ? "Ativo" : "Inativo"}
                     </Badge>
                     <Button
                       variant="ghost"
@@ -153,8 +151,8 @@ export default function Alerts() {
           ) : (
             <div className="py-12 text-center text-muted-foreground">
               <Bell className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
-              <p className="font-medium text-foreground">Nenhum destinatário configurado</p>
-              <p className="text-xs mt-1">Adicione um email acima para receber alertas</p>
+              <p className="font-medium text-foreground">Nenhum alerta configurado</p>
+              <p className="text-xs mt-1">Adicione emails acima para receber alertas</p>
             </div>
           )}
         </CardContent>

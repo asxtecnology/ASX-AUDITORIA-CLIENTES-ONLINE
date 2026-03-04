@@ -43,7 +43,7 @@ export default function Violations() {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      v.sellerName.toLowerCase().includes(q) ||
+      (v.sellerName ?? "").toLowerCase().includes(q) ||
       (p?.codigo ?? "").toLowerCase().includes(q) ||
       (p?.descricao ?? "").toLowerCase().includes(q) ||
       (v.mlTitle ?? "").toLowerCase().includes(q)
@@ -56,7 +56,7 @@ export default function Violations() {
     const rows = data.items.map(({ v, p }) => [
       v.id, p?.codigo ?? "", v.sellerName,
       v.precoAnunciado, v.precoMinimo, v.diferenca, v.percentAbaixo,
-      v.status, new Date(v.detectedAt).toLocaleString("pt-BR"), v.mlUrl ?? "",
+      v.status, new Date(v.detected_at).toLocaleString("pt-BR"), v.mlUrl ?? "",
     ]);
     const csv = [headers, ...rows].map((r) => r.join(";")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -146,18 +146,18 @@ export default function Violations() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-xs font-medium text-foreground">{v.sellerName}</p>
+                          <p className="text-xs font-medium text-foreground">{v.sellerName ?? "Desconhecido"}</p>
                           {v.sellerId && <p className="text-xs text-muted-foreground">ID: {v.sellerId}</p>}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-red-400 font-bold text-sm">{formatCurrency(v.precoAnunciado)}</span>
+                          <span className="text-red-400 font-bold text-sm">{formatCurrency(v.precoAnunciado ?? "0")}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-muted-foreground text-xs">{formatCurrency(v.precoMinimo)}</span>
+                          <span className="text-muted-foreground text-xs">{formatCurrency(v.precoMinimo ?? "0")}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex flex-col items-end">
-                            <span className="text-orange-400 font-medium text-xs">-{formatCurrency(v.diferenca)}</span>
+                            <span className="text-orange-400 font-medium text-xs">-{formatCurrency(v.diferenca ?? "0")}</span>
                             <span className="text-orange-400/70 text-xs">({parseFloat(String(v.percentAbaixo)).toFixed(1)}%)</span>
                           </div>
                         </td>
@@ -165,7 +165,7 @@ export default function Violations() {
                           <StatusBadge status={v.status} />
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-muted-foreground">{new Date(v.detectedAt).toLocaleString("pt-BR")}</span>
+                          <span className="text-xs text-muted-foreground">{new Date(v.detected_at).toLocaleString("pt-BR")}</span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1">

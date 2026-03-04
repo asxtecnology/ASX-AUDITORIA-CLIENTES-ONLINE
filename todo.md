@@ -169,3 +169,8 @@
 - [x] Aplicar code splitting no vite.config.ts (bundle: 1.3MB → 638KB)
 - [x] 24/24 testes passando
 - [ ] Salvar checkpoint e publicar
+
+## Migrations Supabase Produção
+- [ ] Auditar tabelas existentes no Supabase
+- [ ] Criar tabelas faltantes (violations, monitoring_runs, etc.)
+- [ ] Confirmar que todas as tabelas existem

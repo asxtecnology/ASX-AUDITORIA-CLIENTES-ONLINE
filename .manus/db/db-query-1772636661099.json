@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `violations` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `productId` int,\n  `clienteId` int,\n  `runId` int,\n  `snapshotId` int,\n  `mlItemId` varchar(50),\n  `mlTitle` text,\n  `mlUrl` text,\n  `mlThumbnail` text,\n  `sellerId` varchar(50),\n  `sellerName` varchar(200),\n  `precoAnunciado` decimal(10,2),\n  `precoMinimo` decimal(10,2),\n  `diferenca` decimal(10,2),\n  `percentAbaixo` decimal(5,2),\n  `plataforma` varchar(50) DEFAULT 'mercadolivre',\n  `metodoMatch` varchar(50),\n  `confianca` int DEFAULT 0,\n  `status` varchar(20) NOT NULL DEFAULT 'open',\n  `detected_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `resolvedAt` timestamp NULL,\n  `resolvedBy` varchar(200),\n  `notes` text\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute CREATE TABLE IF NOT EXISTS `violations` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `productId` int,\n  `clienteId` int,\n  `runId` int,\n  `snapshotId` int,\n  `mlItemId` varchar(50),\n  `mlTitle` text,\n  `mlUrl` text,\n  `mlThumbnail` text,\n  `sellerId` varchar(50),\n  `sellerName` varchar(200),\n  `precoAnunciado` decimal(10,2),\n  `precoMinimo` decimal(10,2),\n  `diferenca` decimal(10,2),\n  `percentAbaixo` decimal(5,2),\n  `plataforma` varchar(50) DEFAULT 'mercadolivre',\n  `metodoMatch` varchar(50),\n  `confianca` int DEFAULT 0,\n  `status` varchar(20) NOT NULL DEFAULT 'open',\n  `detected_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `resolvedAt` timestamp NULL,\n  `resolvedBy` varchar(200),\n  `notes` text\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 51
+}

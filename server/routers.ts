@@ -24,7 +24,6 @@ import {
   upsertProduct,
   upsertSetting,
   getSnapshotsByProduct,
-  // v2 helpers
   getClientes,
   getClienteById,
   upsertCliente,
@@ -36,8 +35,8 @@ import {
 import { runScraper, runMonitoring } from "./mlScraper";
 import { TRPCError } from "@trpc/server";
 
-// ─── Rate Limiter (in-memory, per-server) ────────────────────────────────────
-const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutos entre execuções
+// Rate Limiter (in-memory, per-server)
+const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutos entre execucoes
 let lastRunTime = 0;
 
 function checkRunRateLimit() {
@@ -52,14 +51,14 @@ function checkRunRateLimit() {
   lastRunTime = now;
 }
 
-// ─── Products Router ──────────────────────────────────────────────────────────
+// Products Router
 const productsRouter = router({
   list: protectedProcedure
     .input(z.object({
       search: z.string().optional(),
       ativo: z.boolean().optional(),
       categoria: z.string().optional(),
-      linha: z.enum(["PREMIUM", "PLUS", "ECO"]).optional(),
+      linha: z.string().optional(),
       limit: z.number().default(50),
       offset: z.number().default(0),
     }))
@@ -92,14 +91,11 @@ const productsRouter = router({
       codigo: z.string(),
       descricao: z.string(),
       ean: z.string().optional(),
-      unidade: z.string().optional(),
-      caixa: z.number().optional(),
-      voltagem: z.string().optional(),
-      ncm: z.string().optional(),
+      categoria: z.string().optional(),
+      linha: z.string().optional(),
       precoCusto: z.string(),
       precoMinimo: z.string(),
       margemPercent: z.string().optional(),
-      statusBase: z.string().optional(),
     })))
     .mutation(async ({ input }) => {
       let imported = 0;
@@ -108,9 +104,7 @@ const productsRouter = router({
         try {
           await upsertProduct({
             ...p,
-            caixa: p.caixa ?? null,
             margemPercent: p.margemPercent ?? "60.00",
-            statusBase: p.statusBase ?? "ATIVO",
           });
           imported++;
         } catch {
@@ -125,7 +119,7 @@ const productsRouter = router({
     .query(({ input }) => getSnapshotsByProduct(input.productId, input.days)),
 });
 
-// ─── Monitoring Router ────────────────────────────────────────────────────────
+// Monitoring Router
 const monitoringRouter = router({
   runNow: protectedProcedure
     .input(z.object({ clienteId: z.number().optional() }).optional())
@@ -141,7 +135,6 @@ const monitoringRouter = router({
   latest: protectedProcedure
     .query(async () => {
       const run = await getLatestMonitoringRun();
-      // tRPC cannot return undefined — return null-safe default when no run exists
       return run ?? null;
     }),
 
@@ -153,7 +146,7 @@ const monitoringRouter = router({
     .query(({ input }) => getViolationTrend(input.days)),
 });
 
-// ─── Violations Router ────────────────────────────────────────────────────────
+// Violations Router
 const violationsRouter = router({
   list: protectedProcedure
     .input(z.object({
@@ -179,7 +172,7 @@ const violationsRouter = router({
     .query(({ input }) => getViolationsByCliente(input.clienteId, input.limit)),
 });
 
-// ─── Clientes Router ──────────────────────────────────────────────────────────
+// Clientes Router
 const clientesRouter = router({
   list: protectedProcedure
     .query(() => getClientes()),
@@ -194,7 +187,8 @@ const clientesRouter = router({
       nome: z.string().min(1),
       sellerId: z.string().min(1),
       lojaML: z.string().optional(),
-      linkLoja: z.string().optional(),
+      email: z.string().optional(),
+      telefone: z.string().optional(),
       status: z.enum(["ativo", "inativo"]).default("ativo"),
     }))
     .mutation(({ input }) => upsertCliente(input)),
@@ -211,7 +205,7 @@ const clientesRouter = router({
     }),
 });
 
-// ─── Vendedores Router ────────────────────────────────────────────────────────
+// Vendedores Router
 const vendedoresRouter = router({
   list: protectedProcedure
     .input(z.object({
@@ -230,18 +224,19 @@ const vendedoresRouter = router({
     .query(({ input }) => getHistoricoPrecos(input)),
 });
 
-// ─── Alerts Router ────────────────────────────────────────────────────────────
+// Alerts Router
 const alertsRouter = router({
   list: protectedProcedure.query(() => getAlertConfigs()),
 
   upsert: protectedProcedure
     .input(z.object({
       id: z.number().optional(),
-      email: z.string().email(),
-      name: z.string().optional(),
-      active: z.boolean().default(true),
-      notifyOnViolation: z.boolean().default(true),
-      notifyOnRunComplete: z.boolean().default(false),
+      userId: z.number().optional(),
+      emailsDestinatarios: z.string().optional(),
+      frequencia: z.string().default("immediate"),
+      minViolacoes: z.number().default(1),
+      incluirResumo: z.boolean().default(true),
+      ativo: z.boolean().default(true),
     }))
     .mutation(({ input }) => upsertAlertConfig(input)),
 
@@ -250,7 +245,7 @@ const alertsRouter = router({
     .mutation(({ input }) => deleteAlertConfig(input.id)),
 });
 
-// ─── Settings Router ──────────────────────────────────────────────────────────
+// Settings Router
 const settingsRouter = router({
   getAll: protectedProcedure.query(() => getAllSettings()),
 
@@ -261,7 +256,7 @@ const settingsRouter = router({
   init: adminProcedure.mutation(() => initDefaultSettings()),
 });
 
-// ─── App Router ───────────────────────────────────────────────────────────────
+// App Router
 export const appRouter = router({
   system: systemRouter,
   auth: router({

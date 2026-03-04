@@ -19,7 +19,6 @@ type Cliente = {
   nome: string;
   sellerId: string;
   lojaML: string | null;
-  linkLoja: string | null;
   status: "ativo" | "inativo";
   totalProdutos: number | null;
   totalViolacoes: number | null;
@@ -93,9 +92,9 @@ function ClienteCard({ cliente, onCheck, onEdit, onDelete, isAdmin }: {
             <RefreshCw className="w-3 h-3 mr-1" />
             Verificar Agora
           </Button>
-          {cliente.linkLoja && (
+          {cliente.lojaML && (
             <Button size="sm" variant="outline" className="border-border text-muted-foreground hover:bg-accent" asChild>
-              <a href={cliente.linkLoja} target="_blank" rel="noopener noreferrer">
+              <a href={`https://www.mercadolivre.com.br/perfil/${cliente.lojaML}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-3 h-3" />
               </a>
             </Button>
@@ -123,7 +122,6 @@ function ClienteForm({ initial, onSave, onCancel }: {
     nome: initial?.nome ?? "",
     sellerId: initial?.sellerId ?? "",
     lojaML: initial?.lojaML ?? "",
-    linkLoja: initial?.linkLoja ?? "",
     status: initial?.status ?? "ativo",
   });
 
@@ -160,12 +158,12 @@ function ClienteForm({ initial, onSave, onCancel }: {
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-muted-foreground">Link da Loja</Label>
+          <Label className="text-muted-foreground">Email</Label>
           <Input
             className="bg-accent border-border text-foreground"
-            placeholder="https://..."
-            value={form.linkLoja}
-            onChange={(e) => setForm({ ...form, linkLoja: e.target.value })}
+            placeholder="email@exemplo.com"
+            value={(form as any).email ?? ""}
+            onChange={(e) => setForm({ ...form, email: e.target.value } as any)}
           />
         </div>
       </div>
@@ -248,12 +246,12 @@ export default function Clientes() {
       nome: data.nome,
       sellerId: data.sellerId,
       lojaML: data.lojaML || undefined,
-      linkLoja: data.linkLoja || undefined,
+      email: data.email || undefined,
       status: data.status,
     });
   };
 
-  const clientes = (clientesList ?? []) as Cliente[];
+  const clientes = (clientesList ?? []) as unknown as Cliente[];
   const { isAdmin } = useAdmin();
   const totalViolacoes = clientes.reduce((s, c) => s + (c.totalViolacoes ?? 0), 0);
   const totalProdutos = clientes.reduce((s, c) => s + (c.totalProdutos ?? 0), 0);

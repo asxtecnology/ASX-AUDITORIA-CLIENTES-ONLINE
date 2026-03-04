@@ -309,21 +309,21 @@ export default function Dashboard() {
                         <p className="text-xs font-medium text-foreground">{v.sellerName}</p>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-red-400 font-semibold text-xs">{formatCurrency(v.precoAnunciado)}</span>
+                        <span className="text-red-400 font-semibold text-xs">{formatCurrency(v.precoAnunciado ?? "0")}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-muted-foreground text-xs">{formatCurrency(v.precoMinimo)}</span>
+                        <span className="text-muted-foreground text-xs">{formatCurrency(v.precoMinimo ?? "0")}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-orange-400 font-medium text-xs">
-                          -{formatCurrency(v.diferenca)} ({parseFloat(String(v.percentAbaixo)).toFixed(1)}%)
+                          -{formatCurrency(v.diferenca ?? "0")} ({parseFloat(String(v.percentAbaixo ?? 0)).toFixed(1)}%)
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <StatusBadge status={v.status} />
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-muted-foreground">{new Date(v.detectedAt).toLocaleDateString("pt-BR")}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(v.detected_at).toLocaleDateString("pt-BR")}</span>
                       </td>
                     </tr>
                   ))}

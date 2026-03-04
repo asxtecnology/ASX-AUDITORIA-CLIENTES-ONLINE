@@ -1,18 +1,18 @@
 /**
- * ASX Price Monitor — ML Scraper v3 (PostgreSQL)
- * Estratégia: HTML scraping das lojas dos vendedores no ML
+ * ASX Price Monitor — ML Scraper v3 (PostgreSQL / Supabase)
+ * Estrategia: HTML scraping das lojas dos vendedores no ML
  *
  * Por que HTML scraping em vez da API REST?
- * A API pública do ML (api.mercadolibre.com) exige OAuth para buscas por
- * seller_id e retorna 403 sem token. O scraping via HTML da loja pública
- * (lista.mercadolivre.com.br/_Loja_{nickname}) não requer autenticação
- * e retorna todos os produtos com preços em tempo real.
+ * A API publica do ML (api.mercadolibre.com) exige OAuth para buscas por
+ * seller_id e retorna 403 sem token. O scraping via HTML da loja publica
+ * (lista.mercadolivre.com.br/_CustId_{sellerId}) nao requer autenticacao
+ * e retorna todos os produtos com precos em tempo real.
  *
- * Sistema de Confiança (0-100):
- *   100 = Código ASX exato no título (ex: ASX1007)
+ * Sistema de Confianca (0-100):
+ *   100 = Codigo ASX exato no titulo (ex: ASX1007)
  *    85 = Marca ASX + Linha (ULTRA LED/SUPER LED) + Tipo de bulbo (H7/H4...)
  *    70 = Marca ASX + Tipo de bulbo
- *    50 = Apenas marca ASX no título
+ *    50 = Apenas marca ASX no titulo
  *   <50 = DESCARTADO
  */
 
@@ -26,7 +26,6 @@ import {
   violations,
   clientes,
   historicoPrecosTable,
-  vendedores,
 } from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
@@ -75,7 +74,7 @@ type CatalogItem = {
   precoMinimo: string;
 };
 
-// -- Utilitários --
+// -- Utilitarios --
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -106,7 +105,7 @@ async function fetchHtml(url: string, retries = 0): Promise<string | null> {
   }
 }
 
-// -- Categorização de produtos --
+// -- Categorizacao de produtos --
 export function categorizarProduto(
   descricao: string,
   precoCusto: number
@@ -119,7 +118,7 @@ export function categorizarProduto(
     categoria = "WORKLIGHT";
   else if (upper.includes("CHICOTE")) categoria = "CHICOTE";
   else if (upper.includes("XENON")) categoria = "XENON";
-  else if (upper.includes("LAMPADA") || upper.includes("LÂMPADA"))
+  else if (upper.includes("LAMPADA") || upper.includes("LAMPADA"))
     categoria = "LAMPADA";
   else if (upper.includes("PROJETOR")) categoria = "PROJETOR";
   else if (upper.includes("LED")) categoria = "LED";
@@ -131,7 +130,7 @@ export function categorizarProduto(
   return { categoria, linha };
 }
 
-// -- Sistema de Confiança --
+// -- Sistema de Confianca --
 const CONNECTOR_PATTERNS = [
   "H1", "H3", "H4", "H7", "H8", "H9", "H11", "H13", "H15", "H16", "H27",
   "HB3", "HB4", "T10", "T5", "P21W", "T15", "W16W", "D1S", "D2S", "D3S",
@@ -150,7 +149,7 @@ export function matchProduct(
   for (const prod of catalog) {
     const precoMinimo = Number(prod.precoMinimo);
 
-    // 1. Match por código ASX exato no título (confiança 100)
+    // 1. Match por codigo ASX exato no titulo (confianca 100)
     if (titleUpper.includes(prod.codigo.toUpperCase())) {
       return {
         productId: prod.id,
@@ -172,7 +171,7 @@ export function matchProduct(
     new RegExp(`\\b${c}\\b`).test(titleUpper)
   );
 
-  // Match por linha + conector (confiança 85)
+  // Match por linha + conector (confianca 85)
   if (foundLine && foundConnector) {
     const match = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
@@ -193,7 +192,7 @@ export function matchProduct(
     }
   }
 
-  // Match por ASX + conector (confiança 70)
+  // Match por ASX + conector (confianca 70)
   if (foundConnector) {
     const match = catalog.find((p) =>
       new RegExp(`\\b${foundConnector}\\b`).test(p.descricao.toUpperCase())
@@ -210,7 +209,7 @@ export function matchProduct(
     }
   }
 
-  // Match apenas por ASX (confiança 50 — mínimo aceitável)
+  // Match apenas por ASX (confianca 50 - minimo aceitavel)
   const firstProd = catalog[0];
   if (firstProd) {
     return {
@@ -258,7 +257,7 @@ async function scrapeStorePage(
       $card.find(".ui-search-item__title").text().trim();
     if (!title) return;
 
-    // Price — grab the main price element
+    // Price
     const priceEl = $card.find(".poly-price__current").first();
     const priceText = priceEl.text().trim();
     const priceMatch = priceText.replace(/\./g, "").match(/[\d,]+/);
@@ -295,14 +294,14 @@ export async function runScraper(
   options: ScrapeOptions = {}
 ): Promise<{ runId: number; found: number; violations: number }> {
   const db = await getDb();
-  if (!db) throw new Error("Banco de dados não disponível");
+  if (!db) throw new Error("Banco de dados nao disponivel");
 
   const triggeredBy = options.triggeredBy ?? "scheduled";
   console.log(
     `[Scraper v3] Iniciando... triggeredBy=${triggeredBy}, clienteId=${options.clienteId ?? "todos"}`
   );
 
-  // Criar registro de execução (PostgreSQL: usar .returning() para obter o ID)
+  // Criar registro de execucao
   const [runResult] = await db.insert(monitoringRuns).values({
     status: "running",
     triggeredBy,
@@ -317,7 +316,7 @@ export async function runScraper(
   const dbErrors: string[] = [];
 
   try {
-    // Carregar catálogo ativo
+    // Carregar catalogo ativo
     const catalog = await db
       .select({
         id: products.id,
@@ -329,7 +328,7 @@ export async function runScraper(
       .from(products)
       .where(eq(products.ativo, true));
 
-    if (catalog.length === 0) throw new Error("Catálogo vazio");
+    if (catalog.length === 0) throw new Error("Catalogo vazio");
 
     // Carregar clientes ativos
     const clientesList = options.clienteId
@@ -344,7 +343,7 @@ export async function runScraper(
           )
       : await db.select().from(clientes).where(eq(clientes.status, "ativo"));
 
-    // -- FASE 1: Busca cirúrgica por loja do cliente --
+    // -- FASE 1: Busca cirurgica por loja do cliente --
     for (const cliente of clientesList) {
       const searchKey = cliente.sellerId && /^\d+$/.test(cliente.sellerId)
         ? cliente.sellerId
@@ -356,12 +355,12 @@ export async function runScraper(
       }
 
       console.log(
-        `[Scraper v3] Buscando anúncios de ${cliente.nome} (searchKey: ${searchKey})`
+        `[Scraper v3] Buscando anuncios de ${cliente.nome} (searchKey: ${searchKey})`
       );
       let clienteFound = 0;
       let clienteViolations = 0;
 
-      // Paginar resultados da loja (48 por página)
+      // Paginar resultados da loja (48 por pagina)
       for (let offset = 0; offset < 300; offset += 48) {
         const items = await scrapeStorePage(searchKey, "ASX", offset);
         if (items.length === 0) break;
@@ -381,7 +380,7 @@ export async function runScraper(
             totalViolations++;
           }
 
-          // Salvar snapshot e capturar o ID retornado
+          // Salvar snapshot
           let snapshotId = 0;
           try {
             const [snap] = await db
@@ -397,6 +396,11 @@ export async function runScraper(
                 mlUrl: item.url,
                 mlThumbnail: item.thumbnail,
                 precoAnunciado: String(item.price),
+                precoMinimo: String(matchResult.precoMinimo),
+                isViolation,
+                confianca: matchResult.confianca,
+                metodoMatch: matchResult.metodoMatch,
+                plataforma: "mercadolivre",
               })
               .returning({ id: priceSnapshots.id });
             snapshotId = snap.id;
@@ -405,7 +409,7 @@ export async function runScraper(
             console.error("[DB] Erro ao salvar snapshot:", e.message);
           }
 
-          // Salvar violação (com snapshotId real)
+          // Salvar violacao
           if (isViolation) {
             const diferenca = matchResult.precoMinimo - item.price;
             const percentAbaixo = (diferenca / matchResult.precoMinimo) * 100;
@@ -416,6 +420,7 @@ export async function runScraper(
                   snapshotId,
                   runId,
                   productId: matchResult.productId,
+                  clienteId: cliente.id,
                   sellerName: cliente.nome,
                   sellerId: cliente.sellerId ?? String(cliente.id),
                   mlItemId: item.mlbId,
@@ -428,37 +433,37 @@ export async function runScraper(
                   percentAbaixo: String(percentAbaixo.toFixed(2)),
                   confianca: matchResult.confianca,
                   metodoMatch: matchResult.metodoMatch,
+                  plataforma: "mercadolivre",
                   status: "open",
                 });
             } catch (e: any) {
               dbErrors.push(`violation: ${e.message}`);
-              console.error("[DB] Erro ao salvar violação:", e.message);
+              console.error("[DB] Erro ao salvar violacao:", e.message);
             }
           }
 
-          // Histórico de preços (PostgreSQL: ON CONFLICT DO UPDATE)
+          // Historico de precos (snake_case columns)
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           try {
             await db
               .insert(historicoPrecosTable)
               .values({
-                codigoAsx: matchResult.codigo,
+                codigo_asx: matchResult.codigo,
                 plataforma: "mercadolivre",
                 vendedor: cliente.nome,
-                itemId: item.mlbId,
+                item_id: item.mlbId,
                 preco: String(item.price),
-                dataCaptura: today.toISOString().split("T")[0],
+                data_captura: today.toISOString().split("T")[0],
               });
           } catch (e: any) {
-            // Ignore duplicate key errors for historico (expected on same day)
             if (!e.message?.includes("duplicate") && !e.message?.includes("unique")) {
               dbErrors.push(`historico: ${e.message}`);
-              console.error("[DB] Erro ao salvar histórico:", e.message);
+              console.error("[DB] Erro ao salvar historico:", e.message);
             }
           }
 
-          // Ranking de vendedores (PostgreSQL: ON CONFLICT DO UPDATE)
+          // Ranking de vendedores (raw SQL - snake_case columns)
           try {
             await db.execute(
               sql`INSERT INTO vendedores (plataforma, vendedor_id, nome, cliente_id, total_violacoes, total_anuncios)
@@ -477,7 +482,7 @@ export async function runScraper(
         if (items.length < 48) break;
       }
 
-      // Atualizar totais do cliente
+      // Atualizar totais do cliente (camelCase columns)
       await db
         .update(clientes)
         .set({
@@ -488,13 +493,13 @@ export async function runScraper(
         .where(eq(clientes.id, cliente.id));
 
       console.log(
-        `[Scraper v3] ${cliente.nome}: ${clienteFound} produtos, ${clienteViolations} violações`
+        `[Scraper v3] ${cliente.nome}: ${clienteFound} produtos, ${clienteViolations} violacoes`
       );
     }
 
-    // -- FASE 2: Busca geral por código ASX (vendedores não cadastrados) --
+    // -- FASE 2: Busca geral por codigo ASX (vendedores nao cadastrados) --
     if (!options.clienteId) {
-      console.log("[Scraper v3] Fase 2: busca geral por código ASX...");
+      console.log("[Scraper v3] Fase 2: busca geral por codigo ASX...");
       const topProducts = catalog.slice(0, 15);
 
       for (const prod of topProducts) {
@@ -535,7 +540,6 @@ export async function runScraper(
           fase2Items.push({ title, price, mlbId, href, sellerEl, thumbnail });
         });
 
-        // Process collected items with proper await
         for (const item of fase2Items) {
           const matchResult = matchProduct(item.title, catalog);
           if (!matchResult || matchResult.confianca < 70) continue;
@@ -558,6 +562,11 @@ export async function runScraper(
                 mlUrl: item.href.split("#")[0],
                 mlThumbnail: item.thumbnail,
                 precoAnunciado: String(item.price),
+                precoMinimo: String(matchResult.precoMinimo),
+                isViolation,
+                confianca: matchResult.confianca,
+                metodoMatch: matchResult.metodoMatch,
+                plataforma: "mercadolivre",
               })
               .returning({ id: priceSnapshots.id });
             snapshotId = snap.id;
@@ -587,27 +596,26 @@ export async function runScraper(
                   percentAbaixo: String(percentAbaixo.toFixed(2)),
                   confianca: matchResult.confianca,
                   metodoMatch: matchResult.metodoMatch,
+                  plataforma: "mercadolivre",
                   status: "open",
                 });
             } catch (e: any) {
               dbErrors.push(`fase2_violation: ${e.message}`);
-              console.error("[DB] Fase 2 - Erro violação:", e.message);
+              console.error("[DB] Fase 2 - Erro violacao:", e.message);
             }
           }
         }
       }
     }
 
-    // Finalizar execução
-    const finalStatus = dbErrors.length > 0 ? "completed" : "completed";
+    // Finalizar execucao (usar nomes corretos das colunas: totalFound, totalViolations)
     await db
       .update(monitoringRuns)
       .set({
-        status: finalStatus,
+        status: "completed" as const,
         finishedAt: new Date(),
-        totalProducts: catalog.length,
-        productsFound: totalFound,
-        violationsFound: totalViolations,
+        totalFound,
+        totalViolations,
         errorMessage: dbErrors.length > 0
           ? `${dbErrors.length} erros de DB: ${dbErrors.slice(0, 5).join("; ")}`
           : null,
@@ -615,13 +623,13 @@ export async function runScraper(
       .where(eq(monitoringRuns.id, runId));
 
     console.log(
-      `[Scraper v3] Concluído. Encontrados: ${totalFound}, Violações: ${totalViolations}, Erros DB: ${dbErrors.length}`
+      `[Scraper v3] Concluido. Encontrados: ${totalFound}, Violacoes: ${totalViolations}, Erros DB: ${dbErrors.length}`
     );
 
     if (totalViolations > 0) {
       await notifyOwner({
-        title: `⚠️ ASX Monitor: ${totalViolations} violação(ões) detectada(s)`,
-        content: `Monitoramento concluído. ${totalFound} anúncios encontrados, ${totalViolations} violações de preço mínimo detectadas.`,
+        title: `ASX Monitor: ${totalViolations} violacao(oes) detectada(s)`,
+        content: `Monitoramento concluido. ${totalFound} anuncios encontrados, ${totalViolations} violacoes de preco minimo detectadas.`,
       }).catch(() => {});
     }
 
@@ -631,7 +639,7 @@ export async function runScraper(
     await db
       .update(monitoringRuns)
       .set({
-        status: "failed",
+        status: "failed" as const,
         finishedAt: new Date(),
         errorMessage: err.message,
       })
@@ -640,7 +648,7 @@ export async function runScraper(
   }
 }
 
-// -- Compatibilidade com código legado --
+// -- Compatibilidade com codigo legado --
 export async function runMonitoring(
   triggeredBy: "scheduled" | "manual" = "scheduled"
 ) {
@@ -653,12 +661,12 @@ export async function runMonitoring(
   };
 }
 
-// -- Agendador (cron diário às 14h) --
+// -- Agendador (cron diario as 14h) --
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function startScheduler() {
   scheduleNext();
-  console.log("[Scheduler v3] Agendador iniciado — execução diária às 14:00");
+  console.log("[Scheduler v3] Agendador iniciado - execucao diaria as 14:00");
 }
 
 function scheduleNext() {
@@ -669,14 +677,14 @@ function scheduleNext() {
 
   const delay = next.getTime() - now.getTime();
   console.log(
-    `[Scheduler v3] Próxima execução em ${Math.round(delay / 60000)} minutos (${next.toLocaleString("pt-BR")})`
+    `[Scheduler v3] Proxima execucao em ${Math.round(delay / 60000)} minutos (${next.toLocaleString("pt-BR")})`
   );
 
   schedulerTimer = setTimeout(async () => {
     try {
       await runScraper({ triggeredBy: "scheduled" });
     } catch (err: any) {
-      console.error("[Scheduler v3] Erro na execução agendada:", err.message);
+      console.error("[Scheduler v3] Erro na execucao agendada:", err.message);
     } finally {
       scheduleNext();
     }
