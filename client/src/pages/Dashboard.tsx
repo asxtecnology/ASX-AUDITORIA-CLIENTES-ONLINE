@@ -1,31 +1,20 @@
 import { trpc } from "@/lib/trpc";
+import { formatCurrency, formatDateShort } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle, Clock, Package, Play, RefreshCw, ShieldAlert, TrendingDown, TrendingUp } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertTriangle, BarChart3, CheckCircle, Clock, Package, Play,
+  RefreshCw, ShieldAlert, TrendingDown, TrendingUp, WifiOff,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
-
-function formatCurrency(value: string | number) {
-  return `R$ ${parseFloat(String(value)).toFixed(2).replace(".", ",")}`;
-}
-
-function formatDate(d: Date | string) {
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -37,14 +26,60 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className={`text-xs border ${s.className}`}>{s.label}</Badge>;
 }
 
+function KpiSkeleton() {
+  return (
+    <Card className="border-border bg-card">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-7 rounded-lg" />
+        </div>
+        <Skeleton className="h-8 w-16" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <Card className="border-red-500/30 bg-red-500/5">
+      <CardContent className="p-6 text-center">
+        <WifiOff className="h-10 w-10 mx-auto mb-3 text-red-400/60" />
+        <p className="text-sm font-medium text-foreground">Erro ao carregar dados</p>
+        <p className="text-xs text-muted-foreground mt-1">{message}</p>
+        <Button variant="outline" size="sm" onClick={onRetry} className="mt-3 gap-2">
+          <RefreshCw className="h-3 w-3" /> Tentar novamente
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [isRunning, setIsRunning] = useState(false);
 
-  const { data: stats, refetch: refetchStats } = trpc.monitoring.stats.useQuery();
-  const { data: trend } = trpc.monitoring.trend.useQuery({ days: 30 });
-  const { data: latestRun, refetch: refetchRun } = trpc.monitoring.latest.useQuery();
-  const { data: violations } = trpc.violations.list.useQuery({ status: "open", limit: 8, offset: 0 });
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsError,
+    error: statsErr,
+    refetch: refetchStats,
+  } = trpc.monitoring.stats.useQuery();
+  const {
+    data: trend,
+    isLoading: trendLoading,
+  } = trpc.monitoring.trend.useQuery({ days: 30 });
+  const {
+    data: latestRun,
+    refetch: refetchRun,
+  } = trpc.monitoring.latest.useQuery();
+  const {
+    data: violations,
+    isLoading: violationsLoading,
+    isError: violationsError,
+    refetch: refetchViolations,
+  } = trpc.violations.list.useQuery({ status: "open", limit: 8, offset: 0 });
   const { data: products } = trpc.products.list.useQuery({ limit: 1, offset: 0 });
 
   const runNow = trpc.monitoring.runNow.useMutation({
@@ -53,10 +88,11 @@ export default function Dashboard() {
       toast.success(`Monitoramento concluído! ${data.violations} violação(ões) detectada(s).`);
       refetchStats();
       refetchRun();
+      refetchViolations();
     },
-    onError: () => {
+    onError: (err) => {
       setIsRunning(false);
-      toast.error("Erro ao executar monitoramento.");
+      toast.error(err.message || "Erro ao executar monitoramento.");
     },
   });
 
@@ -67,51 +103,16 @@ export default function Dashboard() {
   };
 
   const trendData = (trend ?? []).map((t) => ({
-    date: formatDate(t.date),
+    date: formatDateShort(t.date),
     violations: t.count,
   }));
 
   const kpis = [
-    {
-      title: "Violações Abertas",
-      value: stats?.open ?? 0,
-      icon: ShieldAlert,
-      color: "text-orange-400",
-      bg: "bg-orange-500/10",
-      border: "border-orange-500/20",
-    },
-    {
-      title: "Total de Violações",
-      value: stats?.total ?? 0,
-      icon: AlertTriangle,
-      color: "text-red-400",
-      bg: "bg-red-500/10",
-      border: "border-red-500/20",
-    },
-    {
-      title: "Detectadas Hoje",
-      value: stats?.todayCount ?? 0,
-      icon: TrendingDown,
-      color: "text-yellow-400",
-      bg: "bg-yellow-500/10",
-      border: "border-yellow-500/20",
-    },
-    {
-      title: "Resolvidas",
-      value: stats?.resolved ?? 0,
-      icon: CheckCircle,
-      color: "text-green-400",
-      bg: "bg-green-500/10",
-      border: "border-green-500/20",
-    },
-    {
-      title: "Produtos no Catálogo",
-      value: products?.total ?? 0,
-      icon: Package,
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
-    },
+    { title: "Violações Abertas", value: stats?.open ?? 0, icon: ShieldAlert, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+    { title: "Total de Violações", value: stats?.total ?? 0, icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
+    { title: "Detectadas Hoje", value: stats?.todayCount ?? 0, icon: TrendingDown, color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
+    { title: "Resolvidas", value: stats?.resolved ?? 0, icon: CheckCircle, color: "text-green-400", bg: "bg-green-500/10", border: "border-green-500/20" },
+    { title: "Produtos no Catálogo", value: products?.total ?? 0, icon: Package, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
   ];
 
   return (
@@ -142,37 +143,38 @@ export default function Dashboard() {
               </Badge>
             </div>
           )}
-          <Button
-            onClick={handleRunNow}
-            disabled={isRunning}
-            className="gap-2 bg-primary hover:bg-primary/90"
-          >
-            {isRunning ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
+          <Button onClick={handleRunNow} disabled={isRunning} className="gap-2 bg-primary hover:bg-primary/90">
+            {isRunning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             {isRunning ? "Executando..." : "Executar Agora"}
           </Button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {kpis.map((kpi) => (
-          <Card key={kpi.title} className={`border ${kpi.border} bg-card`}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs text-muted-foreground font-medium">{kpi.title}</p>
-                <div className={`p-1.5 rounded-lg ${kpi.bg}`}>
-                  <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
-                </div>
-              </div>
-              <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {statsError ? (
+        <ErrorCard
+          message={statsErr?.message ?? "Não foi possível conectar ao servidor"}
+          onRetry={() => refetchStats()}
+        />
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {statsLoading
+            ? Array.from({ length: 5 }).map((_, i) => <KpiSkeleton key={i} />)
+            : kpis.map((kpi) => (
+                <Card key={kpi.title} className={`border ${kpi.border} bg-card`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs text-muted-foreground font-medium">{kpi.title}</p>
+                      <div className={`p-1.5 rounded-lg ${kpi.bg}`}>
+                        <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+                      </div>
+                    </div>
+                    <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -185,7 +187,9 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {trendData.length > 0 ? (
+            {trendLoading ? (
+              <Skeleton className="h-[200px] w-full rounded-lg" />
+            ) : trendData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={trendData}>
                   <defs>
@@ -216,32 +220,36 @@ export default function Dashboard() {
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <BarChart3Icon className="h-4 w-4 text-primary" />
+              <BarChart3 className="h-4 w-4 text-primary" />
               Status das Violações
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart
-                data={[
-                  { name: "Abertas", value: stats?.open ?? 0, fill: "#f97316" },
-                  { name: "Notificadas", value: stats?.notified ?? 0, fill: "#3b82f6" },
-                  { name: "Resolvidas", value: stats?.resolved ?? 0, fill: "#22c55e" },
-                ]}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.25 0.015 250)" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
-                <YAxis tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
-                <Tooltip
-                  contentStyle={{ background: "oklch(0.17 0.015 250)", border: "1px solid oklch(0.25 0.015 250)", borderRadius: "8px", color: "oklch(0.95 0.01 250)" }}
-                />
-                <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]}>
-                  <Cell fill="#f97316" />
-                  <Cell fill="#3b82f6" />
-                  <Cell fill="#22c55e" />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {statsLoading ? (
+              <Skeleton className="h-[200px] w-full rounded-lg" />
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={[
+                    { name: "Abertas", value: stats?.open ?? 0, fill: "#f97316" },
+                    { name: "Notificadas", value: stats?.notified ?? 0, fill: "#3b82f6" },
+                    { name: "Resolvidas", value: stats?.resolved ?? 0, fill: "#22c55e" },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.25 0.015 250)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
+                  <Tooltip
+                    contentStyle={{ background: "oklch(0.17 0.015 250)", border: "1px solid oklch(0.25 0.015 250)", borderRadius: "8px", color: "oklch(0.95 0.01 250)" }}
+                  />
+                  <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]}>
+                    <Cell fill="#f97316" />
+                    <Cell fill="#3b82f6" />
+                    <Cell fill="#22c55e" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -260,7 +268,21 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {violations?.items && violations.items.length > 0 ? (
+          {violationsLoading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full rounded" />
+              ))}
+            </div>
+          ) : violationsError ? (
+            <div className="py-8 text-center">
+              <WifiOff className="h-8 w-8 mx-auto mb-2 text-red-400/40" />
+              <p className="text-xs text-muted-foreground">Erro ao carregar violações</p>
+              <Button variant="ghost" size="sm" onClick={() => refetchViolations()} className="mt-2 text-xs">
+                Tentar novamente
+              </Button>
+            </div>
+          ) : violations?.items && violations.items.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -318,13 +340,5 @@ export default function Dashboard() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function BarChart3Icon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
   );
 }

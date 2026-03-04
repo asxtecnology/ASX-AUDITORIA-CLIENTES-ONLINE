@@ -49,42 +49,42 @@ export default function Vendedores() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <TrendingUp className="w-6 h-6 text-orange-400" />
           Ranking de Vendedores
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <p className="text-muted-foreground text-sm mt-1">
           Todos os vendedores detectados com produtos ASX — ordenados por violações
         </p>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="bg-slate-800/50 border-slate-700">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-bold text-blue-400">{items.length}</p>
-            <p className="text-sm text-slate-400">Vendedores Detectados</p>
+            <p className="text-sm text-muted-foreground">Vendedores Detectados</p>
           </CardContent>
         </Card>
         <Card className="bg-red-900/20 border-red-800">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-bold text-red-400">{totalViolacoes}</p>
-            <p className="text-sm text-slate-400">Total de Violações</p>
+            <p className="text-sm text-muted-foreground">Total de Violações</p>
           </CardContent>
         </Card>
-        <Card className="bg-slate-800/50 border-slate-700">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-bold text-green-400">{totalAnuncios}</p>
-            <p className="text-sm text-slate-400">Anúncios Monitorados</p>
+            <p className="text-sm text-muted-foreground">Anúncios Monitorados</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Gráfico Top 10 */}
       {top10.length > 0 && (
-        <Card className="bg-slate-800/50 border-slate-700">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-white text-base">Top 10 Violadores</CardTitle>
+            <CardTitle className="text-foreground text-base">Top 10 Violadores</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
@@ -108,9 +108,9 @@ export default function Vendedores() {
       {/* Filtros */}
       <div className="flex gap-3 items-center">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            className="pl-9 bg-slate-800 border-slate-700 text-white"
+            className="pl-9 bg-card border-border text-foreground"
             placeholder="Buscar vendedor..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -120,7 +120,7 @@ export default function Vendedores() {
           <Button
             size="sm"
             variant={orderBy === "total_violacoes" ? "default" : "outline"}
-            className={orderBy === "total_violacoes" ? "bg-blue-600" : "border-slate-600 text-slate-300"}
+            className={orderBy === "total_violacoes" ? "bg-blue-600" : "border-border text-muted-foreground"}
             onClick={() => setOrderBy("total_violacoes")}
           >
             Por Violações
@@ -128,7 +128,7 @@ export default function Vendedores() {
           <Button
             size="sm"
             variant={orderBy === "total_anuncios" ? "default" : "outline"}
-            className={orderBy === "total_anuncios" ? "bg-blue-600" : "border-slate-600 text-slate-300"}
+            className={orderBy === "total_anuncios" ? "bg-blue-600" : "border-border text-muted-foreground"}
             onClick={() => setOrderBy("total_anuncios")}
           >
             Por Anúncios
@@ -137,26 +137,26 @@ export default function Vendedores() {
       </div>
 
       {/* Tabela */}
-      <Card className="bg-slate-800/50 border-slate-700">
+      <Card className="bg-card border-border">
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <div className="py-12 text-center">
-              <ShoppingBag className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-400">Nenhum vendedor detectado ainda.</p>
-              <p className="text-slate-500 text-sm mt-1">Execute o monitoramento para capturar vendedores.</p>
+              <ShoppingBag className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
+              <p className="text-muted-foreground">Nenhum vendedor detectado ainda.</p>
+              <p className="text-muted-foreground text-sm mt-1">Execute o monitoramento para capturar vendedores.</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700 hover:bg-transparent">
-                  <TableHead className="text-slate-400">#</TableHead>
-                  <TableHead className="text-slate-400">Vendedor</TableHead>
-                  <TableHead className="text-slate-400">Plataforma</TableHead>
-                  <TableHead className="text-slate-400">Cliente ASX</TableHead>
-                  <TableHead className="text-slate-400 text-right">Anúncios</TableHead>
-                  <TableHead className="text-slate-400 text-right">Violações</TableHead>
-                  <TableHead className="text-slate-400">Status</TableHead>
-                  <TableHead className="text-slate-400">Última Atualização</TableHead>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">#</TableHead>
+                  <TableHead className="text-muted-foreground">Vendedor</TableHead>
+                  <TableHead className="text-muted-foreground">Plataforma</TableHead>
+                  <TableHead className="text-muted-foreground">Cliente ASX</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Anúncios</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Violações</TableHead>
+                  <TableHead className="text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-muted-foreground">Última Atualização</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -164,24 +164,26 @@ export default function Vendedores() {
                   const v = row.v;
                   const hasViolations = (v.totalViolacoes ?? 0) > 0;
                   return (
-                    <TableRow key={v.id} className="border-slate-700 hover:bg-slate-700/30">
-                      <TableCell className="text-slate-400 font-mono text-sm">{idx + 1}</TableCell>
+                    <TableRow key={v.id} className="border-border hover:bg-accent/50">
+                      <TableCell className="text-muted-foreground font-mono text-sm">{idx + 1}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="text-white font-medium">{v.nome}</span>
-                          <a
-                            href={`https://www.mercadolivre.com.br/perfil/${v.nome}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-slate-500 hover:text-blue-400"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                          <span className="text-foreground font-medium">{v.nome}</span>
+                          {v.vendedorId && (
+                            <a
+                              href={`https://lista.mercadolivre.com.br/_CustId_${v.vendedorId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-blue-400"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-500">ID: {v.vendedorId}</p>
+                        <p className="text-xs text-muted-foreground">ID: {v.vendedorId}</p>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="border-slate-600 text-slate-300 text-xs">
+                        <Badge variant="outline" className="border-border text-muted-foreground text-xs">
                           {v.plataforma}
                         </Badge>
                       </TableCell>
@@ -189,10 +191,10 @@ export default function Vendedores() {
                         {row.c ? (
                           <span className="text-blue-400 text-sm">{row.c.nome}</span>
                         ) : (
-                          <span className="text-slate-500 text-sm italic">Desconhecido</span>
+                          <span className="text-muted-foreground text-sm italic">Desconhecido</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right text-slate-300">{v.totalAnuncios}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{v.totalAnuncios}</TableCell>
                       <TableCell className="text-right">
                         <span className={`font-bold ${hasViolations ? "text-red-400" : "text-green-400"}`}>
                           {v.totalViolacoes}
@@ -210,7 +212,7 @@ export default function Vendedores() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-slate-500 text-xs">
+                      <TableCell className="text-muted-foreground text-xs">
                         {v.ultimaVez ? new Date(v.ultimaVez).toLocaleString("pt-BR") : "—"}
                       </TableCell>
                     </TableRow>

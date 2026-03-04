@@ -23,11 +23,12 @@ export default function Settings() {
 
   const initSettings = trpc.settings.init.useMutation({
     onSuccess: () => { toast.success("Configurações padrão inicializadas!"); refetch(); },
+    onError: (err) => toast.error(err.message || "Erro ao inicializar."),
   });
 
   const updateSetting = trpc.settings.update.useMutation({
     onSuccess: () => { toast.success("Configuração salva!"); refetch(); setDirty(false); },
-    onError: () => toast.error("Erro ao salvar."),
+    onError: (err) => toast.error(err.message || "Erro ao salvar."),
   });
 
   useEffect(() => {
@@ -222,7 +223,7 @@ export default function Settings() {
                         <span className="text-xs font-semibold text-foreground">{s.value}</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className="text-xs text-muted-foreground">{s.description ?? "—"}</span>
+                        <span className="text-xs text-muted-foreground">{SETTING_LABELS[s.key]?.description ?? "—"}</span>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="text-xs text-muted-foreground">{new Date(s.updatedAt).toLocaleString("pt-BR")}</span>

@@ -1,5 +1,6 @@
 import { and, count, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import {
   AlertConfig,
   AppSetting,
@@ -19,17 +20,28 @@ import {
   products,
   users,
   violations,
+  clientes,
+  vendedores,
+  historicoPrecosTable,
+  InsertCliente,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _client: ReturnType<typeof postgres> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  const dbUrl = process.env.SUPABASE_URL || process.env.DATABASE_URL;
+  if (!_db && dbUrl && dbUrl.startsWith('postgresql')) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _client = postgres(dbUrl, {
+        max: 10,
+        idle_timeout: 20,
+        connect_timeout: 10,
+      });
+      _db = drizzle(_client);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.error("[Database] Failed to connect:", error);
       _db = null;
     }
   }
@@ -56,7 +68,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  updateSet.updatedAt = new Date();
+  await db.insert(users).values(values).onConflictDoUpdate({
+    target: users.openId,
+    set: updateSet,
+  });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -100,14 +116,14 @@ export async function getProductByCodigo(codigo: string) {
 export async function upsertProduct(product: InsertProduct) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(products).values(product).onDuplicateKeyUpdate({
+  await db.insert(products).values(product).onConflictDoUpdate({
+    target: products.codigo,
     set: {
       descricao: product.descricao,
       ean: product.ean,
       precoCusto: product.precoCusto,
       precoMinimo: product.precoMinimo,
       margemPercent: product.margemPercent,
-      statusBase: product.statusBase,
       updatedAt: new Date(),
     },
   });
@@ -135,8 +151,8 @@ export async function getActiveProducts(): Promise<Product[]> {
 export async function createMonitoringRun(data: InsertMonitoringRun) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(monitoringRuns).values(data);
-  return result[0];
+  const result = await db.insert(monitoringRuns).values(data).returning({ id: monitoringRuns.id });
+  return result[0] ?? null;
 }
 
 export async function updateMonitoringRun(id: number, data: Partial<MonitoringRun>) {
@@ -186,6 +202,7 @@ export async function getViolations(opts?: {
   status?: "open" | "notified" | "resolved";
   productId?: number;
   sellerId?: string;
+  clienteId?: number;
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
@@ -197,6 +214,7 @@ export async function getViolations(opts?: {
   if (opts?.status) conditions.push(eq(violations.status, opts.status));
   if (opts?.productId) conditions.push(eq(violations.productId, opts.productId));
   if (opts?.sellerId) conditions.push(eq(violations.sellerId, opts.sellerId));
+  if (opts?.clienteId) conditions.push(eq(violations.clienteId, opts.clienteId));
   if (opts?.dateFrom) conditions.push(gte(violations.detectedAt, opts.dateFrom));
   if (opts?.dateTo) conditions.push(lte(violations.detectedAt, opts.dateTo));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -247,20 +265,20 @@ export async function getViolationTrend(days = 30) {
   const since = new Date();
   since.setDate(since.getDate() - days);
   try {
-    // Check if table has any rows first to avoid SQL errors on empty table
     const countResult = await db.select({ count: count() }).from(violations);
     if ((countResult[0]?.count ?? 0) === 0) return [];
 
-    const rows = await db.execute(
-      sql`SELECT DATE(detected_at) as date, COUNT(*) as cnt
-          FROM violations
-          WHERE detected_at >= ${since}
-          GROUP BY DATE(detected_at)
-          ORDER BY DATE(detected_at)`
-    );
-    const results = (rows as unknown as [Array<{ date: string; cnt: number }>])[0];
-    if (!Array.isArray(results)) return [];
-    return results.map((r) => ({ date: String(r.date), count: Number(r.cnt) }));
+    const results = await db
+      .select({
+        date: sql<string>`DATE(${violations.detectedAt})`,
+        count: count(),
+      })
+      .from(violations)
+      .where(gte(violations.detectedAt, since))
+      .groupBy(sql`DATE(${violations.detectedAt})`)
+      .orderBy(sql`DATE(${violations.detectedAt})`);
+
+    return results.map((r) => ({ date: String(r.date), count: Number(r.count) }));
   } catch (e) {
     console.error("[DB] getViolationTrend error:", e);
     return [];
@@ -277,9 +295,20 @@ export async function getAlertConfigs() {
 export async function upsertAlertConfig(data: InsertAlertConfig) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(alertConfigs).values(data).onDuplicateKeyUpdate({
-    set: { name: data.name, active: data.active, notifyOnViolation: data.notifyOnViolation, notifyOnRunComplete: data.notifyOnRunComplete },
-  });
+  if (data.id) {
+    // Update existing
+    await db.update(alertConfigs).set({
+      emailsDestinatarios: data.emailsDestinatarios,
+      ativo: data.ativo,
+      frequencia: data.frequencia,
+      minViolacoes: data.minViolacoes,
+      incluirResumo: data.incluirResumo,
+      updatedAt: new Date(),
+    }).where(eq(alertConfigs.id, data.id));
+  } else {
+    // Insert new
+    await db.insert(alertConfigs).values(data);
+  }
 }
 
 export async function deleteAlertConfig(id: number) {
@@ -305,32 +334,28 @@ export async function getAllSettings(): Promise<AppSetting[]> {
 export async function upsertSetting(key: string, value: string, description?: string) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(appSettings).values({ key, value, description }).onDuplicateKeyUpdate({ set: { value, updatedAt: new Date() } });
+  await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({
+    target: appSettings.key,
+    set: { value, updatedAt: new Date() },
+  });
 }
 
 export async function initDefaultSettings() {
   const defaults: InsertAppSetting[] = [
-    { key: "margem_percent", value: "60", description: "Margem mínima de preço (%)" },
-    { key: "scraper_hora", value: "14", description: "Hora de execução do scraper (0-23)" },
-    { key: "scraper_ativo", value: "true", description: "Scraper automático ativo" },
-    { key: "ml_keywords_min_match", value: "2", description: "Mínimo de keywords para validar produto" },
-    { key: "ml_search_limit", value: "50", description: "Limite de resultados por busca no ML" },
-    { key: "alert_email_ativo", value: "true", description: "Alertas por email ativos" },
+    { key: "margem_percent", value: "60" },
+    { key: "scraper_hora", value: "14" },
+    { key: "scraper_ativo", value: "true" },
+    { key: "ml_keywords_min_match", value: "2" },
+    { key: "ml_search_limit", value: "50" },
+    { key: "alert_email_ativo", value: "true" },
   ];
   for (const s of defaults) {
     const existing = await getSetting(s.key);
-    if (!existing) await upsertSetting(s.key, s.value, s.description ?? undefined);
+    if (!existing) await upsertSetting(s.key, s.value);
   }
 }
 
-// ─── v2: Clientes ─────────────────────────────────────────────────────────────
-import {
-  clientes,
-  vendedores,
-  historicoPrecosTable,
-  InsertCliente,
-} from "../drizzle/schema";
-
+// ─── Clientes ─────────────────────────────────────────────────────────────────
 export async function getClientes() {
   const db = await getDb();
   if (!db) return [];
@@ -347,9 +372,19 @@ export async function getClienteById(id: number) {
 export async function upsertCliente(data: InsertCliente) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(clientes).values(data).onDuplicateKeyUpdate({
-    set: { nome: data.nome, lojaML: data.lojaML, linkLoja: data.linkLoja, status: data.status, updatedAt: new Date() },
-  });
+  if (data.id) {
+    await db.update(clientes).set({
+      nome: data.nome,
+      lojaML: data.lojaML,
+      status: data.status,
+      updatedAt: new Date(),
+    }).where(eq(clientes.id, data.id));
+  } else {
+    await db.insert(clientes).values(data).onConflictDoUpdate({
+      target: clientes.sellerId,
+      set: { nome: data.nome, lojaML: data.lojaML, status: data.status, updatedAt: new Date() },
+    });
+  }
 }
 
 export async function deleteCliente(id: number) {
@@ -358,7 +393,7 @@ export async function deleteCliente(id: number) {
   await db.delete(clientes).where(eq(clientes.id, id));
 }
 
-// ─── v2: Vendedores ───────────────────────────────────────────────────────────
+// ─── Vendedores ───────────────────────────────────────────────────────────────
 export async function getVendedores(opts?: { limit?: number; offset?: number; orderBy?: "total_violacoes" | "total_anuncios" }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
@@ -375,7 +410,7 @@ export async function getVendedores(opts?: { limit?: number; offset?: number; or
   return { items, total: totalRows[0]?.count ?? 0 };
 }
 
-// ─── v2: Histórico de Preços ──────────────────────────────────────────────────
+// ─── Histórico de Preços ──────────────────────────────────────────────────────
 export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?: string; days?: number }) {
   const db = await getDb();
   if (!db) return [];
@@ -385,13 +420,13 @@ export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?:
   if (opts?.days) {
     const since = new Date();
     since.setDate(since.getDate() - opts.days);
-    conditions.push(gte(historicoPrecosTable.createdAt, since));
+    conditions.push(gte(historicoPrecosTable.dataCaptura, since.toISOString().split('T')[0]));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.createdAt)).limit(200);
+  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.dataCaptura)).limit(200);
 }
 
-// ─── v2: Violações por Cliente ────────────────────────────────────────────────
+// ─── Violações por Cliente ────────────────────────────────────────────────────
 export async function getViolationsByCliente(clienteId: number, limit = 20) {
   const db = await getDb();
   if (!db) return [];

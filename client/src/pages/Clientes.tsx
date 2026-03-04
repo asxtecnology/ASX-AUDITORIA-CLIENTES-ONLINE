@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAdmin } from "@/hooks/useAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,18 +19,19 @@ type Cliente = {
   nome: string;
   sellerId: string;
   lojaML: string | null;
-  linkLoja: string | null;
+  linkLoja?: string | null;
   status: "ativo" | "inativo";
   totalProdutos: number | null;
   totalViolacoes: number | null;
   ultimaVerificacao: Date | null;
 };
 
-function ClienteCard({ cliente, onCheck, onEdit, onDelete }: {
+function ClienteCard({ cliente, onCheck, onEdit, onDelete, isAdmin }: {
   cliente: Cliente;
   onCheck: (id: number) => void;
   onEdit: (c: Cliente) => void;
   onDelete: (id: number) => void;
+  isAdmin: boolean;
 }) {
   const violacoes = cliente.totalViolacoes ?? 0;
   const produtos = cliente.totalProdutos ?? 0;
@@ -39,14 +41,14 @@ function ClienteCard({ cliente, onCheck, onEdit, onDelete }: {
     : <CheckCircle className="w-4 h-4 text-green-400" />;
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-500 transition-colors">
+    <Card className="bg-card border-border hover:border-border transition-colors">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <Store className="w-5 h-5 text-blue-400 shrink-0" />
             <div className="min-w-0">
-              <CardTitle className="text-white text-base truncate">{cliente.nome}</CardTitle>
-              <p className="text-xs text-slate-400 mt-0.5 truncate">
+              <CardTitle className="text-foreground text-base truncate">{cliente.nome}</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 ID: {cliente.sellerId}
               </p>
             </div>
@@ -59,23 +61,23 @@ function ClienteCard({ cliente, onCheck, onEdit, onDelete }: {
       <CardContent className="space-y-4">
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-slate-700/50 rounded-lg p-3 text-center">
+          <div className="bg-accent rounded-lg p-3 text-center">
             <p className="text-2xl font-bold text-blue-400">{produtos}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Produtos ASX</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Produtos ASX</p>
           </div>
-          <div className={`rounded-lg p-3 text-center ${violacoes > 0 ? "bg-red-900/30" : "bg-slate-700/50"}`}>
+          <div className={`rounded-lg p-3 text-center ${violacoes > 0 ? "bg-red-900/30" : "bg-accent"}`}>
             <div className="flex items-center justify-center gap-1">
               {statusIcon}
               <p className={`text-2xl font-bold ${violacoes > 0 ? "text-red-400" : "text-green-400"}`}>
                 {violacoes}
               </p>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">Violações</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Violações</p>
           </div>
         </div>
 
         {/* Última verificação */}
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           {cliente.ultimaVerificacao
             ? `Verificado: ${new Date(cliente.ultimaVerificacao).toLocaleString("pt-BR")}`
             : "Nunca verificado"}
@@ -85,25 +87,27 @@ function ClienteCard({ cliente, onCheck, onEdit, onDelete }: {
         <div className="flex gap-2">
           <Button
             size="sm"
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-foreground"
             onClick={() => onCheck(cliente.id)}
           >
             <RefreshCw className="w-3 h-3 mr-1" />
             Verificar Agora
           </Button>
           {cliente.linkLoja && (
-            <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700" asChild>
+            <Button size="sm" variant="outline" className="border-border text-muted-foreground hover:bg-accent" asChild>
               <a href={cliente.linkLoja} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-3 h-3" />
               </a>
             </Button>
           )}
-          <Button size="sm" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700" onClick={() => onEdit(cliente)}>
+          <Button size="sm" variant="outline" className="border-border text-muted-foreground hover:bg-accent" onClick={() => onEdit(cliente)}>
             <Edit className="w-3 h-3" />
           </Button>
-          <Button size="sm" variant="outline" className="border-red-800 text-red-400 hover:bg-red-900/30" onClick={() => onDelete(cliente.id)}>
-            <Trash2 className="w-3 h-3" />
-          </Button>
+          {isAdmin && (
+            <Button size="sm" variant="outline" className="border-red-800 text-red-400 hover:bg-red-900/30" onClick={() => onDelete(cliente.id)}>
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -127,18 +131,18 @@ function ClienteForm({ initial, onSave, onCancel }: {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label className="text-slate-300">Nome do Cliente *</Label>
+          <Label className="text-muted-foreground">Nome do Cliente *</Label>
           <Input
-            className="bg-slate-700 border-slate-600 text-white"
+            className="bg-accent border-border text-foreground"
             placeholder="Ex: LIDER SOM"
             value={form.nome}
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-slate-300">Seller ID (Mercado Livre) *</Label>
+          <Label className="text-muted-foreground">Seller ID (Mercado Livre) *</Label>
           <Input
-            className="bg-slate-700 border-slate-600 text-white"
+            className="bg-accent border-border text-foreground"
             placeholder="Ex: 1917431909"
             value={form.sellerId}
             onChange={(e) => setForm({ ...form, sellerId: e.target.value })}
@@ -147,18 +151,18 @@ function ClienteForm({ initial, onSave, onCancel }: {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label className="text-slate-300">Nickname ML</Label>
+          <Label className="text-muted-foreground">Nickname ML</Label>
           <Input
-            className="bg-slate-700 border-slate-600 text-white"
+            className="bg-accent border-border text-foreground"
             placeholder="Ex: globalparts1"
             value={form.lojaML}
             onChange={(e) => setForm({ ...form, lojaML: e.target.value })}
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-slate-300">Link da Loja</Label>
+          <Label className="text-muted-foreground">Link da Loja</Label>
           <Input
-            className="bg-slate-700 border-slate-600 text-white"
+            className="bg-accent border-border text-foreground"
             placeholder="https://..."
             value={form.linkLoja}
             onChange={(e) => setForm({ ...form, linkLoja: e.target.value })}
@@ -166,12 +170,12 @@ function ClienteForm({ initial, onSave, onCancel }: {
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-slate-300">Status</Label>
+        <Label className="text-muted-foreground">Status</Label>
         <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as "ativo" | "inativo" })}>
-          <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+          <SelectTrigger className="bg-accent border-border text-foreground">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-slate-800 border-slate-700">
+          <SelectContent className="bg-card border-border">
             <SelectItem value="ativo">Ativo</SelectItem>
             <SelectItem value="inativo">Inativo</SelectItem>
           </SelectContent>
@@ -181,7 +185,7 @@ function ClienteForm({ initial, onSave, onCancel }: {
         <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => onSave({ ...form, id: initial?.id })}>
           {initial?.id ? "Salvar Alterações" : "Adicionar Cliente"}
         </Button>
-        <Button variant="outline" className="border-slate-600 text-slate-300" onClick={onCancel}>
+        <Button variant="outline" className="border-border text-muted-foreground" onClick={onCancel}>
           Cancelar
         </Button>
       </div>
@@ -204,12 +208,12 @@ export default function Clientes() {
       setEditingCliente(null);
       refetch();
     },
-    onError: () => toast.error("Erro ao salvar cliente."),
+    onError: (err) => toast.error(err.message || "Erro ao salvar cliente."),
   });
 
   const deleteMutation = trpc.clientes.delete.useMutation({
     onSuccess: () => { toast.success("Cliente removido."); refetch(); },
-    onError: () => toast.error("Erro ao remover cliente."),
+    onError: (err) => toast.error(err.message || "Erro ao remover cliente."),
   });
 
   const checkMutation = trpc.clientes.runCheck.useMutation({
@@ -218,7 +222,7 @@ export default function Clientes() {
       toast.success(`Verificação concluída! ${data.violations} violação(ões) encontrada(s).`);
       refetch();
     },
-    onError: () => { setCheckingId(null); toast.error("Erro ao verificar cliente."); },
+    onError: (err) => { setCheckingId(null); toast.error(err.message || "Erro ao verificar cliente."); },
   });
 
   const handleCheck = (id: number) => {
@@ -244,12 +248,12 @@ export default function Clientes() {
       nome: data.nome,
       sellerId: data.sellerId,
       lojaML: data.lojaML || undefined,
-      linkLoja: data.linkLoja || undefined,
       status: data.status,
     });
   };
 
   const clientes = (clientesList ?? []) as Cliente[];
+  const { isAdmin } = useAdmin();
   const totalViolacoes = clientes.reduce((s, c) => s + (c.totalViolacoes ?? 0), 0);
   const totalProdutos = clientes.reduce((s, c) => s + (c.totalProdutos ?? 0), 0);
 
@@ -258,22 +262,22 @@ export default function Clientes() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Users className="w-6 h-6 text-blue-400" />
             Clientes Monitorados
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1">
             Monitoramento cirúrgico por seller_id — busca direta nos anúncios de cada cliente
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingCliente(null); }}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-foreground">
               <Plus className="w-4 h-4 mr-2" />
               Adicionar Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-lg">
+          <DialogContent className="bg-card border-border text-foreground max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingCliente ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
             </DialogHeader>
@@ -288,33 +292,33 @@ export default function Clientes() {
 
       {/* Resumo */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="bg-slate-800/50 border-slate-700">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-bold text-blue-400">{clientes.length}</p>
-            <p className="text-sm text-slate-400">Clientes Cadastrados</p>
+            <p className="text-sm text-muted-foreground">Clientes Cadastrados</p>
           </CardContent>
         </Card>
-        <Card className="bg-slate-800/50 border-slate-700">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-bold text-green-400">{totalProdutos}</p>
-            <p className="text-sm text-slate-400">Produtos ASX Encontrados</p>
+            <p className="text-sm text-muted-foreground">Produtos ASX Encontrados</p>
           </CardContent>
         </Card>
-        <Card className={`border ${totalViolacoes > 0 ? "bg-red-900/20 border-red-800" : "bg-slate-800/50 border-slate-700"}`}>
+        <Card className={`border ${totalViolacoes > 0 ? "bg-red-900/20 border-red-800" : "bg-card border-border"}`}>
           <CardContent className="pt-4 pb-4">
-            <p className={`text-3xl font-bold ${totalViolacoes > 0 ? "text-red-400" : "text-slate-300"}`}>{totalViolacoes}</p>
-            <p className="text-sm text-slate-400">Total de Violações</p>
+            <p className={`text-3xl font-bold ${totalViolacoes > 0 ? "text-red-400" : "text-muted-foreground"}`}>{totalViolacoes}</p>
+            <p className="text-sm text-muted-foreground">Total de Violações</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Cards de Clientes */}
       {clientes.length === 0 ? (
-        <Card className="bg-slate-800/50 border-slate-700">
+        <Card className="bg-card border-border">
           <CardContent className="py-12 text-center">
-            <ShoppingCart className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400">Nenhum cliente cadastrado ainda.</p>
-            <p className="text-slate-500 text-sm mt-1">Clique em "Adicionar Cliente" para começar.</p>
+            <ShoppingCart className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+            <p className="text-muted-foreground">Nenhum cliente cadastrado ainda.</p>
+            <p className="text-muted-foreground text-sm mt-1">Clique em "Adicionar Cliente" para começar.</p>
           </CardContent>
         </Card>
       ) : (
@@ -326,6 +330,7 @@ export default function Clientes() {
                 onCheck={handleCheck}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                isAdmin={isAdmin}
               />
             </div>
           ))}
@@ -333,10 +338,10 @@ export default function Clientes() {
       )}
 
       {/* Legenda */}
-      <Card className="bg-slate-800/30 border-slate-700/50">
+      <Card className="bg-card/50 border-border/50">
         <CardContent className="py-3">
-          <p className="text-xs text-slate-500">
-            <strong className="text-slate-400">Como funciona:</strong> O scraper usa o seller_id de cada cliente para buscar diretamente seus anúncios no Mercado Livre com a query "ASX". 
+          <p className="text-xs text-muted-foreground">
+            <strong className="text-muted-foreground">Como funciona:</strong> O scraper usa o seller_id de cada cliente para buscar diretamente seus anúncios no Mercado Livre com a query "ASX". 
             Isso é cirúrgico — pega só o que o cliente está vendendo com a marca ASX, eliminando falsos positivos.
             Além disso, uma busca geral captura vendedores não cadastrados que possam estar violando preço.
           </p>

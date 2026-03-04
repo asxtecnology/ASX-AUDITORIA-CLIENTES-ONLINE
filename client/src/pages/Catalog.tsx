@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { formatCurrency } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,11 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { BookOpen, Package, Search, Upload } from "lucide-react";
 import { useRef, useState } from "react";
+import { useAdmin } from "@/hooks/useAdmin";
 import { toast } from "sonner";
-
-function formatCurrency(value: string | number) {
-  return `R$ ${parseFloat(String(value)).toFixed(2).replace(".", ",")}`;
-}
 
 export default function Catalog() {
   const [search, setSearch] = useState("");
@@ -18,23 +16,24 @@ export default function Catalog() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+  const { isAdmin } = useAdmin();
   const limit = 30;
 
   const { data, refetch } = trpc.products.list.useQuery({ search: search || undefined, limit, offset });
 
   const toggleActive = trpc.products.toggleActive.useMutation({
     onSuccess: () => { toast.success("Status atualizado!"); refetch(); },
-    onError: () => toast.error("Erro ao atualizar."),
+    onError: (err) => toast.error(err.message || "Erro ao atualizar."),
   });
 
   const updateProduct = trpc.products.update.useMutation({
     onSuccess: () => { toast.success("Produto atualizado!"); setEditingId(null); refetch(); },
-    onError: () => toast.error("Erro ao salvar."),
+    onError: (err) => toast.error(err.message || "Erro ao salvar."),
   });
 
   const importProducts = trpc.products.import.useMutation({
     onSuccess: (r) => { toast.success(`Importados: ${r.imported}, Ignorados: ${r.skipped}`); refetch(); },
-    onError: () => toast.error("Erro na importação."),
+    onError: (err) => toast.error(err.message || "Erro na importação."),
   });
 
   const handleSaveEdit = (id: number) => {
@@ -98,10 +97,14 @@ export default function Catalog() {
           <p className="text-sm text-muted-foreground mt-1">{data?.total ?? 0} produtos cadastrados</p>
         </div>
         <div className="flex gap-2">
-          <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleCSVImport} />
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
-            <Upload className="h-4 w-4" /> Importar CSV
-          </Button>
+          {isAdmin && (
+            <>
+              <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleCSVImport} />
+              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
+                <Upload className="h-4 w-4" /> Importar CSV
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { formatCurrency } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,10 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle, ExternalLink, Filter, Search, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-
-function formatCurrency(value: string | number) {
-  return `R$ ${parseFloat(String(value)).toFixed(2).replace(".", ",")}`;
-}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -39,7 +36,7 @@ export default function Violations() {
       toast.success("Status atualizado!");
       refetch();
     },
-    onError: () => toast.error("Erro ao atualizar status."),
+    onError: (err) => toast.error(err.message || "Erro ao atualizar status."),
   });
 
   const filtered = (data?.items ?? []).filter(({ v, p }) => {

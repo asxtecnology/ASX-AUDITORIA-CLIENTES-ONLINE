@@ -2,7 +2,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   deleteAlertConfig,
   getActiveProducts,
@@ -34,6 +34,23 @@ import {
   getHistoricoPrecos,
 } from "./db";
 import { runScraper, runMonitoring } from "./mlScraper";
+import { TRPCError } from "@trpc/server";
+
+// ─── Rate Limiter (in-memory, per-server) ────────────────────────────────────
+const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutos entre execuções
+let lastRunTime = 0;
+
+function checkRunRateLimit() {
+  const now = Date.now();
+  if (now - lastRunTime < RATE_LIMIT_MS) {
+    const waitSecs = Math.ceil((RATE_LIMIT_MS - (now - lastRunTime)) / 1000);
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: `Aguarde ${waitSecs}s antes de executar novamente.`,
+    });
+  }
+  lastRunTime = now;
+}
 
 // ─── Products Router ──────────────────────────────────────────────────────────
 const productsRouter = router({
@@ -70,7 +87,7 @@ const productsRouter = router({
     .input(z.object({ id: z.number(), ativo: z.boolean() }))
     .mutation(({ input }) => toggleProductActive(input.id, input.ativo)),
 
-  import: protectedProcedure
+  import: adminProcedure
     .input(z.array(z.object({
       codigo: z.string(),
       descricao: z.string(),
@@ -91,9 +108,7 @@ const productsRouter = router({
         try {
           await upsertProduct({
             ...p,
-            caixa: p.caixa ?? null,
             margemPercent: p.margemPercent ?? "60.00",
-            statusBase: p.statusBase ?? "ATIVO",
           });
           imported++;
         } catch {
@@ -112,7 +127,10 @@ const productsRouter = router({
 const monitoringRouter = router({
   runNow: protectedProcedure
     .input(z.object({ clienteId: z.number().optional() }).optional())
-    .mutation(({ input }) => runScraper({ triggeredBy: "manual", clienteId: input?.clienteId })),
+    .mutation(({ input }) => {
+      checkRunRateLimit();
+      return runScraper({ triggeredBy: "manual", clienteId: input?.clienteId });
+    }),
 
   history: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }))
@@ -179,13 +197,16 @@ const clientesRouter = router({
     }))
     .mutation(({ input }) => upsertCliente(input)),
 
-  delete: protectedProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ input }) => deleteCliente(input.id)),
 
   runCheck: protectedProcedure
     .input(z.object({ clienteId: z.number() }))
-    .mutation(({ input }) => runScraper({ triggeredBy: "manual", clienteId: input.clienteId })),
+    .mutation(({ input }) => {
+      checkRunRateLimit();
+      return runScraper({ triggeredBy: "manual", clienteId: input.clienteId });
+    }),
 });
 
 // ─── Vendedores Router ────────────────────────────────────────────────────────
@@ -214,11 +235,11 @@ const alertsRouter = router({
   upsert: protectedProcedure
     .input(z.object({
       id: z.number().optional(),
-      email: z.string().email(),
-      name: z.string().optional(),
-      active: z.boolean().default(true),
-      notifyOnViolation: z.boolean().default(true),
-      notifyOnRunComplete: z.boolean().default(false),
+      emailsDestinatarios: z.string().optional(),
+      ativo: z.boolean().default(true),
+      frequencia: z.string().optional(),
+      minViolacoes: z.number().optional(),
+      incluirResumo: z.boolean().default(false),
     }))
     .mutation(({ input }) => upsertAlertConfig(input)),
 
@@ -231,11 +252,11 @@ const alertsRouter = router({
 const settingsRouter = router({
   getAll: protectedProcedure.query(() => getAllSettings()),
 
-  update: protectedProcedure
+  update: adminProcedure
     .input(z.object({ key: z.string(), value: z.string() }))
     .mutation(({ input }) => upsertSetting(input.key, input.value)),
 
-  init: protectedProcedure.mutation(() => initDefaultSettings()),
+  init: adminProcedure.mutation(() => initDefaultSettings()),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

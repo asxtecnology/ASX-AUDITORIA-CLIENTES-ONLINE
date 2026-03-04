@@ -92,3 +92,18 @@
 - [ ] Corrigir lógica de comparação preço anunciado vs preço mínimo
 - [ ] Corrigir matching de produtos: buscar por keywords mais amplas (não só "ASX")
 - [ ] Testar e confirmar violação detectada para LS Distribuidora
+
+## Migração Supabase PostgreSQL (ZIP 21 arquivos Claude)
+- [x] Extrair e analisar ZIP com 21 arquivos corrigidos
+- [x] Instalar dependência postgres-js e remover mysql2
+- [x] Reescrever drizzle/schema.ts para PostgreSQL (schema real do Supabase)
+- [x] Adaptar server/db.ts para usar SUPABASE_URL com fallback
+- [x] Corrigir server/mlScraper.ts (campos totalFound/totalViolations)
+- [x] Corrigir server/routers.ts (schema alerts e products)
+- [x] Corrigir client/src/pages/History.tsx (campos totalFound/totalViolations)
+- [x] Corrigir client/src/pages/Settings.tsx (campo description removido do DB)
+- [x] Corrigir client/src/pages/Alerts.tsx (campos ativo/emailsDestinatarios/incluirResumo)
+- [x] Corrigir client/src/pages/Clientes.tsx (linkLoja opcional)
+- [x] Configurar SUPABASE_URL como variável de ambiente
+- [x] 24/24 testes vitest passando
+- [x] 0 erros TypeScript

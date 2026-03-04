@@ -32,8 +32,8 @@ export default function History() {
     .reverse()
     .map((r) => ({
       date: formatDate(r.startedAt),
-      found: r.productsFound ?? 0,
-      violations: r.violationsFound ?? 0,
+      found: r.totalFound ?? 0,
+      violations: r.totalViolations ?? 0,
     }));
 
   return (
@@ -150,14 +150,14 @@ export default function History() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-xs text-muted-foreground">{run.totalProducts ?? 0}</span>
+                          <span className="text-xs text-muted-foreground">{run.totalFound ?? 0}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-xs text-blue-400">{run.productsFound ?? 0}</span>
+                          <span className="text-xs text-blue-400">{run.totalFound ?? 0}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className={`text-xs font-semibold ${(run.violationsFound ?? 0) > 0 ? "text-orange-400" : "text-green-400"}`}>
-                            {run.violationsFound ?? 0}
+                          <span className={`text-xs font-semibold ${(run.totalViolations ?? 0) > 0 ? "text-orange-400" : "text-green-400"}`}>
+                            {run.totalViolations ?? 0}
                           </span>
                         </td>
                         <td className="px-4 py-3">

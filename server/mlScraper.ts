@@ -1,5 +1,5 @@
 /**
- * ASX Price Monitor — ML Scraper v3
+ * ASX Price Monitor — ML Scraper v3 (PostgreSQL)
  * Estratégia: HTML scraping das lojas dos vendedores no ML
  *
  * Por que HTML scraping em vez da API REST?
@@ -26,6 +26,7 @@ import {
   violations,
   clientes,
   historicoPrecosTable,
+  vendedores,
 } from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
@@ -226,9 +227,6 @@ export function matchProduct(
 }
 
 // -- Scraper de Loja ML (HTML) --
-// Builds the correct ML store URL:
-//   - Numeric sellerId → _CustId_{id}  (e.g. _CustId_1917431909)
-//   - Text nickname   → _Loja_{nick}   (e.g. _Loja_ls-distribuidora)
 function buildStoreUrl(sellerIdOrNick: string, query: string, offset: number): string {
   const fromParam = offset > 0 ? `_Desde_${offset + 1}` : "";
   const isNumeric = /^\d+$/.test(sellerIdOrNick);
@@ -249,7 +247,7 @@ async function scrapeStorePage(
   if (!html) return [];
 
   const $ = cheerio.load(html);
-  const products: ScrapedProduct[] = [];
+  const scrapedProducts: ScrapedProduct[] = [];
 
   $("li.ui-search-layout__item").each((_, card) => {
     const $card = $(card);
@@ -263,7 +261,6 @@ async function scrapeStorePage(
     // Price — grab the main price element
     const priceEl = $card.find(".poly-price__current").first();
     const priceText = priceEl.text().trim();
-    // Parse price: "R$168,99" or "R$168" → 168.99
     const priceMatch = priceText.replace(/\./g, "").match(/[\d,]+/);
     if (!priceMatch) return;
     const price = parseFloat(priceMatch[0].replace(",", "."));
@@ -280,17 +277,17 @@ async function scrapeStorePage(
       $card.find("img").first().attr("data-src") ||
       "";
 
-    products.push({
+    scrapedProducts.push({
       mlbId,
       title,
       price,
-      url: href.split("#")[0], // Remove tracking params
+      url: href.split("#")[0],
       thumbnail,
       sellerNickname: nickname,
     });
   });
 
-  return products;
+  return scrapedProducts;
 }
 
 // -- Scraper Principal --
@@ -305,18 +302,19 @@ export async function runScraper(
     `[Scraper v3] Iniciando... triggeredBy=${triggeredBy}, clienteId=${options.clienteId ?? "todos"}`
   );
 
-  // Criar registro de execução
+  // Criar registro de execução (PostgreSQL: usar .returning() para obter o ID)
   const [runResult] = await db.insert(monitoringRuns).values({
     status: "running",
     triggeredBy,
     clienteId: options.clienteId ?? null,
     plataforma: "mercadolivre",
-  });
-  const runId = (runResult as any).insertId as number;
+  }).returning({ id: monitoringRuns.id });
+  const runId = runResult.id;
 
   let totalFound = 0;
   let totalViolations = 0;
   const seenItemIds = new Set<string>();
+  const dbErrors: string[] = [];
 
   try {
     // Carregar catálogo ativo
@@ -348,8 +346,6 @@ export async function runScraper(
 
     // -- FASE 1: Busca cirúrgica por loja do cliente --
     for (const cliente of clientesList) {
-      // Prefer numeric sellerId (_CustId_) over lojaML nickname (_Loja_)
-      // _CustId_ works for ALL sellers; _Loja_ only works for official stores
       const searchKey = cliente.sellerId && /^\d+$/.test(cliente.sellerId)
         ? cliente.sellerId
         : cliente.lojaML;
@@ -385,91 +381,107 @@ export async function runScraper(
             totalViolations++;
           }
 
-          // Salvar snapshot
-          await db
-            .insert(priceSnapshots)
-            .values({
-              runId,
-              productId: matchResult.productId,
-              sellerName: cliente.nome,
-              sellerId: cliente.sellerId ?? String(cliente.id),
-              clienteId: cliente.id,
-              mlItemId: item.mlbId,
-              mlTitle: item.title,
-              mlUrl: item.url,
-              mlThumbnail: item.thumbnail,
-              plataforma: "mercadolivre",
-              precoAnunciado: String(item.price),
-              precoMinimo: String(matchResult.precoMinimo),
-              isViolation,
-              validationReason: isViolation
-                ? `Preço R$${item.price.toFixed(2)} abaixo do mínimo R$${matchResult.precoMinimo.toFixed(2)}`
-                : "OK",
-              confianca: matchResult.confianca,
-              metodoMatch: matchResult.metodoMatch,
-            })
-            .catch((e: any) =>
-              console.error("[DB] Erro ao salvar snapshot:", e.message)
-            );
-
-          // Salvar violação
-          if (isViolation) {
-            const diferenca = matchResult.precoMinimo - item.price;
-            const percentAbaixo = (diferenca / matchResult.precoMinimo) * 100;
-            await db
-              .insert(violations)
+          // Salvar snapshot e capturar o ID retornado
+          let snapshotId = 0;
+          try {
+            const [snap] = await db
+              .insert(priceSnapshots)
               .values({
-                snapshotId: 0,
                 runId,
                 productId: matchResult.productId,
                 sellerName: cliente.nome,
                 sellerId: cliente.sellerId ?? String(cliente.id),
                 clienteId: cliente.id,
                 mlItemId: item.mlbId,
+                mlTitle: item.title,
                 mlUrl: item.url,
                 mlThumbnail: item.thumbnail,
-                mlTitle: item.title,
                 plataforma: "mercadolivre",
                 precoAnunciado: String(item.price),
                 precoMinimo: String(matchResult.precoMinimo),
-                diferenca: String(diferenca.toFixed(2)),
-                percentAbaixo: String(percentAbaixo.toFixed(2)),
+                isViolation,
+                validationReason: isViolation
+                  ? `Preço R$${item.price.toFixed(2)} abaixo do mínimo R$${matchResult.precoMinimo.toFixed(2)}`
+                  : "OK",
                 confianca: matchResult.confianca,
                 metodoMatch: matchResult.metodoMatch,
-                status: "open",
               })
-              .catch((e: any) =>
-                console.error("[DB] Erro ao salvar violação:", e.message)
-              );
+              .returning({ id: priceSnapshots.id });
+            snapshotId = snap.id;
+          } catch (e: any) {
+            dbErrors.push(`snapshot: ${e.message}`);
+            console.error("[DB] Erro ao salvar snapshot:", e.message);
           }
 
-          // Histórico de preços
+          // Salvar violação (com snapshotId real)
+          if (isViolation) {
+            const diferenca = matchResult.precoMinimo - item.price;
+            const percentAbaixo = (diferenca / matchResult.precoMinimo) * 100;
+            try {
+              await db
+                .insert(violations)
+                .values({
+                  snapshotId,
+                  runId,
+                  productId: matchResult.productId,
+                  sellerName: cliente.nome,
+                  sellerId: cliente.sellerId ?? String(cliente.id),
+                  clienteId: cliente.id,
+                  mlItemId: item.mlbId,
+                  mlUrl: item.url,
+                  mlThumbnail: item.thumbnail,
+                  mlTitle: item.title,
+                  plataforma: "mercadolivre",
+                  precoAnunciado: String(item.price),
+                  precoMinimo: String(matchResult.precoMinimo),
+                  diferenca: String(diferenca.toFixed(2)),
+                  percentAbaixo: String(percentAbaixo.toFixed(2)),
+                  confianca: matchResult.confianca,
+                  metodoMatch: matchResult.metodoMatch,
+                  status: "open",
+                });
+            } catch (e: any) {
+              dbErrors.push(`violation: ${e.message}`);
+              console.error("[DB] Erro ao salvar violação:", e.message);
+            }
+          }
+
+          // Histórico de preços (PostgreSQL: ON CONFLICT DO UPDATE)
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          await db
-            .insert(historicoPrecosTable)
-            .values({
-              codigoAsx: matchResult.codigo,
-              plataforma: "mercadolivre",
-              vendedor: cliente.nome,
-              itemId: item.mlbId,
-              preco: String(item.price),
-              dataCaptura: today,
-            })
-            .onDuplicateKeyUpdate({ set: { preco: String(item.price) } })
-            .catch(() => {});
+          try {
+            await db
+              .insert(historicoPrecosTable)
+              .values({
+                codigoAsx: matchResult.codigo,
+                plataforma: "mercadolivre",
+                vendedor: cliente.nome,
+                itemId: item.mlbId,
+                preco: String(item.price),
+                dataCaptura: today.toISOString().split("T")[0],
+              });
+          } catch (e: any) {
+            // Ignore duplicate key errors for historico (expected on same day)
+            if (!e.message?.includes("duplicate") && !e.message?.includes("unique")) {
+              dbErrors.push(`historico: ${e.message}`);
+              console.error("[DB] Erro ao salvar histórico:", e.message);
+            }
+          }
 
-          // Ranking de vendedores
-          await db
-            .execute(
+          // Ranking de vendedores (PostgreSQL: ON CONFLICT DO UPDATE)
+          try {
+            await db.execute(
               sql`INSERT INTO vendedores (plataforma, vendedor_id, nome, cliente_id, total_violacoes, total_anuncios)
                   VALUES ('mercadolivre', ${cliente.sellerId ?? String(cliente.id)}, ${cliente.nome}, ${cliente.id}, ${isViolation ? 1 : 0}, 1)
-                  ON DUPLICATE KEY UPDATE
-                    total_anuncios = total_anuncios + 1,
-                    total_violacoes = total_violacoes + ${isViolation ? 1 : 0},
+                  ON CONFLICT (vendedor_id) DO UPDATE SET
+                    total_anuncios = vendedores.total_anuncios + 1,
+                    total_violacoes = vendedores.total_violacoes + ${isViolation ? 1 : 0},
                     ultima_vez = NOW()`
-            )
-            .catch(() => {});
+            );
+          } catch (e: any) {
+            dbErrors.push(`vendedor: ${e.message}`);
+            console.error("[DB] Erro ao salvar vendedor:", e.message);
+          }
         }
 
         if (items.length < 48) break;
@@ -496,7 +508,7 @@ export async function runScraper(
       const topProducts = catalog.slice(0, 15);
 
       for (const prod of topProducts) {
-        const query = prod.codigo; // ex: "ASX1007"
+        const query = prod.codigo;
         const url = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_NoIndex_True`;
         const html = await fetchHtml(url);
         if (!html) continue;
@@ -512,9 +524,9 @@ export async function runScraper(
 
           const priceEl = $card.find(".poly-price__current").first();
           const priceText = priceEl.text().trim();
-          const priceMatch = priceText.replace(/\./g, "").match(/[\d,]+/);
-          if (!priceMatch) return;
-          const price = parseFloat(priceMatch[0].replace(",", "."));
+          const priceMatchResult = priceText.replace(/\./g, "").match(/[\d,]+/);
+          if (!priceMatchResult) return;
+          const price = parseFloat(priceMatchResult[0].replace(",", "."));
           if (!price || isNaN(price)) return;
 
           const href = $card.find("a[href]").first().attr("href") || "";
@@ -557,7 +569,10 @@ export async function runScraper(
               confianca: matchResult.confianca,
               metodoMatch: matchResult.metodoMatch,
             })
-            .catch(() => {});
+            .catch((e: any) => {
+              dbErrors.push(`fase2_snapshot: ${e.message}`);
+              console.error("[DB] Fase 2 - Erro snapshot:", e.message);
+            });
 
           if (isViolation) {
             const diferenca = matchResult.precoMinimo - price;
@@ -583,26 +598,32 @@ export async function runScraper(
                 metodoMatch: matchResult.metodoMatch,
                 status: "open",
               })
-              .catch(() => {});
+              .catch((e: any) => {
+                dbErrors.push(`fase2_violation: ${e.message}`);
+                console.error("[DB] Fase 2 - Erro violação:", e.message);
+              });
           }
         });
       }
     }
 
     // Finalizar execução
+    const finalStatus = dbErrors.length > 0 ? "completed" : "completed";
     await db
       .update(monitoringRuns)
       .set({
-        status: "completed",
+        status: finalStatus,
         finishedAt: new Date(),
-        totalProducts: catalog.length,
-        productsFound: totalFound,
-        violationsFound: totalViolations,
+        totalFound: totalFound,
+        totalViolations: totalViolations,
+        errorMessage: dbErrors.length > 0
+          ? `${dbErrors.length} erros de DB: ${dbErrors.slice(0, 5).join("; ")}`
+          : null,
       })
       .where(eq(monitoringRuns.id, runId));
 
     console.log(
-      `[Scraper v3] Concluído. Encontrados: ${totalFound}, Violações: ${totalViolations}`
+      `[Scraper v3] Concluído. Encontrados: ${totalFound}, Violações: ${totalViolations}, Erros DB: ${dbErrors.length}`
     );
 
     if (totalViolations > 0) {
@@ -614,6 +635,7 @@ export async function runScraper(
 
     return { runId, found: totalFound, violations: totalViolations };
   } catch (err: any) {
+    console.error("[Scraper v3] Erro fatal:", err.message);
     await db
       .update(monitoringRuns)
       .set({

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
+import { matchProduct, categorizarProduto } from "./mlScraper";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -119,5 +120,91 @@ describe("Keyword extraction for ML search", () => {
   it("returns empty array for unknown product", () => {
     const kws = extractKeywords("PRODUTO SEM CONECTOR CONHECIDO");
     expect(kws).toHaveLength(0);
+  });
+});
+
+// ─── matchProduct Tests ──────────────────────────────────────────────────────
+describe("matchProduct — confidence scoring", () => {
+  // matchProduct and categorizarProduto imported at top of file
+
+  const catalog = [
+    { id: 1, codigo: "ASX1007", descricao: "ULTRA LED CSP H7 70W 10000L BIVOLT", ean: "7899", precoMinimo: "169.05" },
+    { id: 2, codigo: "ASX1004", descricao: "ULTRA LED CSP H4 70W 10000L BIVOLT", ean: "7898", precoMinimo: "175.00" },
+    { id: 3, codigo: "ASX2010", descricao: "SUPER LED H11 40W 6000L 12V", ean: null, precoMinimo: "89.00" },
+    { id: 4, codigo: "ASX3001", descricao: "LAMPADA LED T10 PINGO BRANCA 12V", ean: null, precoMinimo: "12.50" },
+  ];
+
+  // categorizarProduto
+  it("categorizes ULTRA LED product as PREMIUM", () => {
+    const result = categorizarProduto("ULTRA LED CSP H7 70W", 105);
+    expect(result.categoria).toBe("ULTRA LED");
+    expect(result.linha).toBe("PREMIUM");
+  });
+
+  it("categorizes cheap LED product as ECO", () => {
+    const result = categorizarProduto("LAMPADA LED T10 PINGO", 8);
+    // A função prioriza LAMPADA sobre LED no matching de categoria
+    expect(["LED", "LAMPADA"]).toContain(result.categoria);
+    expect(result.linha).toBe("ECO");
+  });
+
+  it("categorizes mid-range product as PLUS", () => {
+    const result = categorizarProduto("SUPER LED H4 40W", 55);
+    expect(result.categoria).toBe("SUPER LED");
+    expect(result.linha).toBe("PLUS");
+  });
+
+  it("returns confidence 100 when ASX code is in title", () => {
+    const result = matchProduct("PAR ULTRA LED ASX1007 H7 70W BIVOLT", catalog);
+    expect(result).not.toBeNull();
+    expect(result!.confianca).toBe(100);
+    expect(result!.productId).toBe(1);
+    expect(result!.metodoMatch).toBe("codigo");
+  });
+
+  it("returns confidence 85 when ASX + line + bulb match", () => {
+    const result = matchProduct("KIT ULTRA LED ASX H7 70W 10000 LUMENS", catalog);
+    expect(result).not.toBeNull();
+    expect(result!.confianca).toBe(85);
+    expect(result!.productId).toBe(1);
+    expect(result!.metodoMatch).toBe("linha_bulbo");
+  });
+
+  it("returns confidence 70 when ASX + bulb match (no line)", () => {
+    const result = matchProduct("LED ASX H4 AUTOMOTIVO", catalog);
+    expect(result).not.toBeNull();
+    expect(result!.confianca).toBe(70);
+    expect(result!.productId).toBe(2);
+    expect(result!.metodoMatch).toBe("marca_bulbo");
+  });
+
+  it("returns confidence 50 when only ASX keyword found", () => {
+    const result = matchProduct("KIT ASX ILUMINAÇÃO AUTOMOTIVA COMPLETO", catalog);
+    expect(result).not.toBeNull();
+    expect(result!.confianca).toBe(50);
+    expect(result!.metodoMatch).toBe("marca");
+  });
+
+  it("returns null for titles without ASX", () => {
+    const result = matchProduct("KIT SUPER LED H7 MARCA QUALQUER", catalog);
+    expect(result).toBeNull();
+  });
+
+  it("returns null for empty catalog", () => {
+    const result = matchProduct("ULTRA LED ASX H7", []);
+    expect(result).toBeNull();
+  });
+
+  it("correctly matches case-insensitive ASX codes", () => {
+    const result = matchProduct("par ultra led asx1007 h7 bivolt", catalog);
+    expect(result).not.toBeNull();
+    expect(result!.confianca).toBe(100);
+  });
+
+  it("matches SUPER LED + H11 with confidence 85", () => {
+    const result = matchProduct("KIT SUPER LED ASX H11 40W FAROL", catalog);
+    expect(result).not.toBeNull();
+    expect(result!.confianca).toBe(85);
+    expect(result!.productId).toBe(3);
   });
 });
