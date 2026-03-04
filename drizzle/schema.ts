@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   integer,
   numeric,
   pgTable,
@@ -7,7 +8,6 @@ import {
   text,
   timestamp,
   varchar,
-  date,
 } from "drizzle-orm/pg-core";
 
 // ─── Users (auth) ────────────────────────────────────────────────────────────
@@ -17,7 +17,7 @@ export const users = pgTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: varchar("role", { length: 20 }).default("user").notNull(),
+  role: text("role").$type<"user" | "admin">().default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -33,7 +33,7 @@ export const clientes = pgTable("clientes", {
   sellerId: varchar("seller_id", { length: 64 }).notNull().unique(),
   lojaML: varchar("loja_ml", { length: 255 }),
   linkLoja: text("link_loja"),
-  status: varchar("status", { length: 20 }).default("ativo").notNull(),
+  status: text("status").$type<"ativo" | "inativo">().default("ativo").notNull(),
   totalProdutos: integer("total_produtos").default(0),
   totalViolacoes: integer("total_violacoes").default(0),
   ultimaVerificacao: timestamp("ultima_verificacao"),
@@ -59,7 +59,7 @@ export const products = pgTable("products", {
   margemPercent: numeric("margem_percent", { precision: 5, scale: 2 }).default("60.00").notNull(),
   statusBase: varchar("status_base", { length: 20 }).default("ATIVO"),
   categoria: varchar("categoria", { length: 64 }),
-  linha: varchar("linha", { length: 20 }),
+  linha: text("linha").$type<"PREMIUM" | "PLUS" | "ECO">(),
   ativo: boolean("ativo").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -73,12 +73,12 @@ export const monitoringRuns = pgTable("monitoring_runs", {
   id: serial("id").primaryKey(),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   finishedAt: timestamp("finished_at"),
-  status: varchar("status", { length: 20 }).default("running").notNull(),
+  status: text("status").$type<"running" | "completed" | "failed">().default("running").notNull(),
   totalProducts: integer("total_products").default(0),
   productsFound: integer("products_found").default(0),
   violationsFound: integer("violations_found").default(0),
   errorMessage: text("error_message"),
-  triggeredBy: varchar("triggered_by", { length: 20 }).default("scheduled").notNull(),
+  triggeredBy: text("triggered_by").$type<"scheduled" | "manual">().default("scheduled").notNull(),
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
   clienteId: integer("cliente_id"),
 });
@@ -95,23 +95,17 @@ export const priceSnapshots = pgTable("price_snapshots", {
   sellerId: varchar("seller_id", { length: 64 }),
   clienteId: integer("cliente_id"),
   mlItemId: varchar("ml_item_id", { length: 64 }),
-  mlTitle: text("ml_title"),
   mlUrl: text("ml_url"),
   mlThumbnail: text("ml_thumbnail"),
-  plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
+  mlTitle: text("ml_title"),
   precoAnunciado: numeric("preco_anunciado", { precision: 10, scale: 2 }).notNull(),
-  precoMinimo: numeric("preco_minimo", { precision: 10, scale: 2 }).notNull(),
-  isViolation: boolean("is_violation").default(false).notNull(),
-  validationReason: varchar("validation_reason", { length: 255 }),
-  confianca: integer("confianca").default(0),
-  metodoMatch: varchar("metodo_match", { length: 64 }),
   capturedAt: timestamp("captured_at").defaultNow().notNull(),
 });
 
 export type PriceSnapshot = typeof priceSnapshots.$inferSelect;
 export type InsertPriceSnapshot = typeof priceSnapshots.$inferInsert;
 
-// ─── Violations ──────────────────────────────────────────────────────────────
+// ─── Violations ───────────────────────────────────────────────────────────────
 export const violations = pgTable("violations", {
   id: serial("id").primaryKey(),
   snapshotId: integer("snapshot_id").notNull(),
@@ -119,19 +113,17 @@ export const violations = pgTable("violations", {
   productId: integer("product_id").notNull(),
   sellerName: varchar("seller_name", { length: 255 }).notNull(),
   sellerId: varchar("seller_id", { length: 64 }),
-  clienteId: integer("cliente_id"),
   mlItemId: varchar("ml_item_id", { length: 64 }),
   mlUrl: text("ml_url"),
   mlThumbnail: text("ml_thumbnail"),
   mlTitle: text("ml_title"),
-  plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
   precoAnunciado: numeric("preco_anunciado", { precision: 10, scale: 2 }).notNull(),
   precoMinimo: numeric("preco_minimo", { precision: 10, scale: 2 }).notNull(),
   diferenca: numeric("diferenca", { precision: 10, scale: 2 }).notNull(),
   percentAbaixo: numeric("percent_abaixo", { precision: 5, scale: 2 }).notNull(),
   confianca: integer("confianca").default(0),
   metodoMatch: varchar("metodo_match", { length: 64 }),
-  status: varchar("status", { length: 20 }).default("open").notNull(),
+  status: text("status").$type<"open" | "notified" | "resolved">().default("open").notNull(),
   notifiedAt: timestamp("notified_at"),
   resolvedAt: timestamp("resolved_at"),
   detectedAt: timestamp("detected_at").defaultNow().notNull(),
@@ -159,7 +151,7 @@ export type InsertHistoricoPreco = typeof historicoPrecosTable.$inferInsert;
 export const vendedores = pgTable("vendedores", {
   id: serial("id").primaryKey(),
   plataforma: varchar("plataforma", { length: 32 }).notNull().default("mercadolivre"),
-  vendedorId: varchar("vendedor_id", { length: 64 }).unique(),
+  vendedorId: varchar("vendedor_id", { length: 64 }),
   nome: varchar("nome", { length: 255 }).notNull(),
   clienteId: integer("cliente_id"),
   totalViolacoes: integer("total_violacoes").default(0),
@@ -174,7 +166,7 @@ export type InsertVendedor = typeof vendedores.$inferInsert;
 // ─── Alert Configurations ─────────────────────────────────────────────────────
 export const alertConfigs = pgTable("alert_configs", {
   id: serial("id").primaryKey(),
-  email: varchar("email", { length: 320 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   active: boolean("active").default(true).notNull(),
   notifyOnViolation: boolean("notify_on_violation").default(true).notNull(),

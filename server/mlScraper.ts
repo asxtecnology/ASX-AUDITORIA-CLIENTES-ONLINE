@@ -396,15 +396,7 @@ export async function runScraper(
                 mlTitle: item.title,
                 mlUrl: item.url,
                 mlThumbnail: item.thumbnail,
-                plataforma: "mercadolivre",
                 precoAnunciado: String(item.price),
-                precoMinimo: String(matchResult.precoMinimo),
-                isViolation,
-                validationReason: isViolation
-                  ? `Preço R$${item.price.toFixed(2)} abaixo do mínimo R$${matchResult.precoMinimo.toFixed(2)}`
-                  : "OK",
-                confianca: matchResult.confianca,
-                metodoMatch: matchResult.metodoMatch,
               })
               .returning({ id: priceSnapshots.id });
             snapshotId = snap.id;
@@ -426,12 +418,10 @@ export async function runScraper(
                   productId: matchResult.productId,
                   sellerName: cliente.nome,
                   sellerId: cliente.sellerId ?? String(cliente.id),
-                  clienteId: cliente.id,
                   mlItemId: item.mlbId,
                   mlUrl: item.url,
                   mlThumbnail: item.thumbnail,
                   mlTitle: item.title,
-                  plataforma: "mercadolivre",
                   precoAnunciado: String(item.price),
                   precoMinimo: String(matchResult.precoMinimo),
                   diferenca: String(diferenca.toFixed(2)),
@@ -567,15 +557,7 @@ export async function runScraper(
                 mlTitle: item.title,
                 mlUrl: item.href.split("#")[0],
                 mlThumbnail: item.thumbnail,
-                plataforma: "mercadolivre",
                 precoAnunciado: String(item.price),
-                precoMinimo: String(matchResult.precoMinimo),
-                isViolation,
-                validationReason: isViolation
-                  ? `Vendedor não cadastrado — Preço R$${item.price.toFixed(2)} abaixo do mínimo R$${matchResult.precoMinimo.toFixed(2)}`
-                  : "OK",
-                confianca: matchResult.confianca,
-                metodoMatch: matchResult.metodoMatch,
               })
               .returning({ id: priceSnapshots.id });
             snapshotId = snap.id;
@@ -595,12 +577,10 @@ export async function runScraper(
                   productId: matchResult.productId,
                   sellerName: item.sellerEl || "Vendedor Desconhecido",
                   sellerId: item.mlbId,
-                  clienteId: null,
                   mlItemId: item.mlbId,
                   mlUrl: item.href.split("#")[0],
                   mlThumbnail: item.thumbnail,
                   mlTitle: item.title,
-                  plataforma: "mercadolivre",
                   precoAnunciado: String(item.price),
                   precoMinimo: String(matchResult.precoMinimo),
                   diferenca: String(diferenca.toFixed(2)),

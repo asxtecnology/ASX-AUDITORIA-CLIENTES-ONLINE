@@ -20,30 +20,18 @@ import {
   products,
   users,
   violations,
-  clientes,
-  vendedores,
-  historicoPrecosTable,
-  InsertCliente,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
-let _client: ReturnType<typeof postgres> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _client = postgres(process.env.DATABASE_URL, {
-        max: 10,
-        idle_timeout: 20,
-        connect_timeout: 10,
-        ssl: "require",
-        prepare: false,  // OBRIGATÓRIO para Supabase pooler (PgBouncer)
-      });
-      _db = drizzle(_client);
-      console.log("[Database] Conectado ao PostgreSQL");
+      const client = postgres(process.env.DATABASE_URL, { prepare: false });
+      _db = drizzle(client);
     } catch (error) {
-      console.error("[Database] Failed to connect:", error);
+      console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
@@ -70,11 +58,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  updateSet.updatedAt = new Date();
-  await db.insert(users).values(values).onConflictDoUpdate({
-    target: users.openId,
-    set: updateSet,
-  });
+  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -98,7 +82,7 @@ export async function getProducts(opts?: { search?: string; ativo?: boolean; lim
     db.select().from(products).where(where).orderBy(products.codigo).limit(opts?.limit ?? 50).offset(opts?.offset ?? 0),
     db.select({ count: count() }).from(products).where(where),
   ]);
-  return { items, total: totalRows[0]?.count ?? 0 };
+  return { items, total: Number(totalRows[0]?.count ?? 0) };
 }
 
 export async function getProductById(id: number) {
@@ -205,7 +189,6 @@ export async function getViolations(opts?: {
   status?: "open" | "notified" | "resolved";
   productId?: number;
   sellerId?: string;
-  clienteId?: number;
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
@@ -217,7 +200,6 @@ export async function getViolations(opts?: {
   if (opts?.status) conditions.push(eq(violations.status, opts.status));
   if (opts?.productId) conditions.push(eq(violations.productId, opts.productId));
   if (opts?.sellerId) conditions.push(eq(violations.sellerId, opts.sellerId));
-  if (opts?.clienteId) conditions.push(eq(violations.clienteId, opts.clienteId));
   if (opts?.dateFrom) conditions.push(gte(violations.detectedAt, opts.dateFrom));
   if (opts?.dateTo) conditions.push(lte(violations.detectedAt, opts.dateTo));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -231,7 +213,7 @@ export async function getViolations(opts?: {
       .offset(opts?.offset ?? 0),
     db.select({ count: count() }).from(violations).where(where),
   ]);
-  return { items, total: totalRows[0]?.count ?? 0 };
+  return { items, total: Number(totalRows[0]?.count ?? 0) };
 }
 
 export async function getViolationStats() {
@@ -243,12 +225,13 @@ export async function getViolationStats() {
     db.select({ status: violations.status, count: count() }).from(violations).groupBy(violations.status),
     db.select({ count: count() }).from(violations).where(gte(violations.detectedAt, today)),
   ]);
-  const result = { total: 0, open: 0, notified: 0, resolved: 0, todayCount: todayStats[0]?.count ?? 0 };
+  const result = { total: 0, open: 0, notified: 0, resolved: 0, todayCount: Number(todayStats[0]?.count ?? 0) };
   for (const row of allStats) {
-    result.total += row.count;
-    if (row.status === "open") result.open = row.count;
-    else if (row.status === "notified") result.notified = row.count;
-    else if (row.status === "resolved") result.resolved = row.count;
+    const n = Number(row.count);
+    result.total += n;
+    if (row.status === "open") result.open = n;
+    else if (row.status === "notified") result.notified = n;
+    else if (row.status === "resolved") result.resolved = n;
   }
   return result;
 }
@@ -269,19 +252,18 @@ export async function getViolationTrend(days = 30) {
   since.setDate(since.getDate() - days);
   try {
     const countResult = await db.select({ count: count() }).from(violations);
-    if ((countResult[0]?.count ?? 0) === 0) return [];
+    if (Number(countResult[0]?.count ?? 0) === 0) return [];
 
-    const results = await db
-      .select({
-        date: sql<string>`DATE(${violations.detectedAt})`,
-        count: count(),
-      })
-      .from(violations)
-      .where(gte(violations.detectedAt, since))
-      .groupBy(sql`DATE(${violations.detectedAt})`)
-      .orderBy(sql`DATE(${violations.detectedAt})`);
-
-    return results.map((r) => ({ date: String(r.date), count: Number(r.count) }));
+    const rows = await db.execute(
+      sql`SELECT DATE(detected_at) as date, COUNT(*) as cnt
+          FROM violations
+          WHERE detected_at >= ${since}
+          GROUP BY DATE(detected_at)
+          ORDER BY DATE(detected_at)`
+    );
+    // postgres-js returns rows directly (not wrapped in a tuple like mysql2)
+    const results = Array.isArray(rows) ? rows : [];
+    return results.map((r: any) => ({ date: String(r.date), count: Number(r.cnt) }));
   } catch (e) {
     console.error("[DB] getViolationTrend error:", e);
     return [];
@@ -298,19 +280,10 @@ export async function getAlertConfigs() {
 export async function upsertAlertConfig(data: InsertAlertConfig) {
   const db = await getDb();
   if (!db) return;
-  if (data.id) {
-    // Update existing
-    await db.update(alertConfigs).set({
-      name: data.name,
-      email: data.email,
-      active: data.active,
-      notifyOnViolation: data.notifyOnViolation,
-      notifyOnRunComplete: data.notifyOnRunComplete,
-    }).where(eq(alertConfigs.id, data.id));
-  } else {
-    // Insert new
-    await db.insert(alertConfigs).values(data);
-  }
+  await db.insert(alertConfigs).values(data).onConflictDoUpdate({
+    target: alertConfigs.email,
+    set: { name: data.name, active: data.active, notifyOnViolation: data.notifyOnViolation, notifyOnRunComplete: data.notifyOnRunComplete },
+  });
 }
 
 export async function deleteAlertConfig(id: number) {
@@ -357,7 +330,14 @@ export async function initDefaultSettings() {
   }
 }
 
-// ─── Clientes ─────────────────────────────────────────────────────────────────
+// ─── v2: Clientes ─────────────────────────────────────────────────────────────
+import {
+  clientes,
+  vendedores,
+  historicoPrecosTable,
+  InsertCliente,
+} from "../drizzle/schema";
+
 export async function getClientes() {
   const db = await getDb();
   if (!db) return [];
@@ -374,20 +354,10 @@ export async function getClienteById(id: number) {
 export async function upsertCliente(data: InsertCliente) {
   const db = await getDb();
   if (!db) return;
-  if (data.id) {
-    await db.update(clientes).set({
-      nome: data.nome,
-      lojaML: data.lojaML,
-      linkLoja: data.linkLoja,
-      status: data.status,
-      updatedAt: new Date(),
-    }).where(eq(clientes.id, data.id));
-  } else {
-    await db.insert(clientes).values(data).onConflictDoUpdate({
-      target: clientes.sellerId,
-      set: { nome: data.nome, lojaML: data.lojaML, linkLoja: data.linkLoja, status: data.status, updatedAt: new Date() },
-    });
-  }
+  await db.insert(clientes).values(data).onConflictDoUpdate({
+    target: clientes.sellerId,
+    set: { nome: data.nome, lojaML: data.lojaML, linkLoja: data.linkLoja, status: data.status, updatedAt: new Date() },
+  });
 }
 
 export async function deleteCliente(id: number) {
@@ -396,7 +366,7 @@ export async function deleteCliente(id: number) {
   await db.delete(clientes).where(eq(clientes.id, id));
 }
 
-// ─── Vendedores ───────────────────────────────────────────────────────────────
+// ─── v2: Vendedores ───────────────────────────────────────────────────────────
 export async function getVendedores(opts?: { limit?: number; offset?: number; orderBy?: "total_violacoes" | "total_anuncios" }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
@@ -410,10 +380,23 @@ export async function getVendedores(opts?: { limit?: number; offset?: number; or
       .offset(opts?.offset ?? 0),
     db.select({ count: count() }).from(vendedores),
   ]);
-  return { items, total: totalRows[0]?.count ?? 0 };
+  return { items, total: Number(totalRows[0]?.count ?? 0) };
 }
 
-// ─── Histórico de Preços ──────────────────────────────────────────────────────
+export async function getViolationsByCliente(clienteId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ v: violations, p: products })
+    .from(violations)
+    .leftJoin(products, eq(violations.productId, products.id))
+    .where(eq(violations.sellerId,
+      db.select({ sid: clientes.sellerId }).from(clientes).where(eq(clientes.id, clienteId)).limit(1) as any
+    ))
+    .orderBy(desc(violations.detectedAt))
+    .limit(limit);
+}
+
+// ─── v2: Histórico de Preços ──────────────────────────────────────────────────
 export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?: string; days?: number }) {
   const db = await getDb();
   if (!db) return [];
@@ -426,17 +409,5 @@ export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?:
     conditions.push(gte(historicoPrecosTable.createdAt, since));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.createdAt)).limit(200);
-}
-
-// ─── Violações por Cliente ────────────────────────────────────────────────────
-export async function getViolationsByCliente(clienteId: number, limit = 20) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select({ v: violations, p: products })
-    .from(violations)
-    .leftJoin(products, eq(violations.productId, products.id))
-    .where(eq(violations.clienteId, clienteId))
-    .orderBy(desc(violations.detectedAt))
-    .limit(limit);
+  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.dataCaptura)).limit(500);
 }

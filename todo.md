@@ -156,3 +156,11 @@
 - [x] 0 erros TypeScript após install
 - [x] 24/24 testes passando
 - [ ] Salvar checkpoint para publicar
+
+## Correção Definitiva Schema + Deploy
+- [x] Aplicar schema.ts, db.ts e drizzle.config.ts do ZIP v8 (Claude)
+- [x] mysql2 já removido (não estava instalado), postgres já presente
+- [x] Corrigir mlScraper.ts (remover campos inexistentes: plataforma, isViolation, validationReason, confianca/metodoMatch de priceSnapshots, clienteId de violations)
+- [x] 0 erros TypeScript
+- [x] 24/24 testes passando
+- [ ] Salvar checkpoint
