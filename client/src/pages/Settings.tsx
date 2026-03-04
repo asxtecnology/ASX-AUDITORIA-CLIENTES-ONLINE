@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 const SETTING_LABELS: Record<string, { label: string; description: string; type: "number" | "boolean" | "text" }> = {
-  margem_percent: { label: "Margem Mínima (%)", description: "Percentual de margem aplicado sobre o preço de custo para calcular o preço mínimo de venda", type: "number" },
+  margemPercent: { label: "Margem Mínima (%)", description: "Percentual de margem aplicado sobre o preço de custo para calcular o preço mínimo de venda", type: "number" },
   scraper_hora: { label: "Hora de Execução (0–23)", description: "Hora do dia em que o scraper executa automaticamente (formato 24h)", type: "number" },
   scraper_ativo: { label: "Scraper Automático Ativo", description: "Ativa ou desativa a execução automática diária do monitoramento", type: "boolean" },
   ml_keywords_min_match: { label: "Mínimo de Keywords para Validar", description: "Número mínimo de keywords do produto que devem aparecer no título do anúncio para ser considerado válido", type: "number" },

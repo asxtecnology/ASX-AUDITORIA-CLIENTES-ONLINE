@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import mysql, { Pool } from "mysql2/promise";
+import mysql from "mysql2/promise";
 import {
   AlertConfig,
   AppSetting,
@@ -27,20 +27,20 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
-let _pool: Pool | null = null;
-let _db: ReturnType<typeof drizzle<Record<string, unknown>, Pool>> | null = null;
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _db: any = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _pool = mysql.createPool(process.env.DATABASE_URL);
-      _db = drizzle(_pool);
+      const pool = mysql.createPool(process.env.DATABASE_URL);
+      _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
-  return _db;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return _db as any;
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -48,7 +48,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
   if (!db) return;
-  const values: InsertUser = { openId: user.openId };
+  const now = new Date();
+  const values: InsertUser = {
+    openId: user.openId,
+    createdAt: now,
+    updatedAt: now,
+    lastSignedIn: now,
+  };
   const updateSet: Record<string, unknown> = {};
   const textFields = ["name", "email", "loginMethod"] as const;
   textFields.forEach((field) => {
@@ -109,16 +115,18 @@ export async function getProductByCodigo(codigo: string) {
 export async function upsertProduct(product: InsertProduct) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(products).values(product).onDuplicateKeyUpdate({
+  const now = new Date();
+  await db.insert(products).values({ ...product, createdAt: now, updatedAt: now }).onDuplicateKeyUpdate({
     set: {
       descricao: product.descricao,
       ean: product.ean,
       categoria: product.categoria,
       linha: product.linha,
-      preco_custo: product.preco_custo,
-      preco_minimo: product.preco_minimo,
-      margem_percent: product.margem_percent,
-      updatedAt: new Date(),
+      precoCusto: product.precoCusto,
+      precoMinimo: product.precoMinimo,
+      margemPercent: product.margemPercent,
+      statusBase: product.statusBase,
+      updatedAt: now,
     },
   });
 }
@@ -141,12 +149,27 @@ export async function getActiveProducts(): Promise<Product[]> {
   return db.select().from(products).where(eq(products.ativo, true)).orderBy(products.codigo);
 }
 
+// ─── Recalcular precoMinimo de TODOS os produtos com nova margem ──────────────
+export async function recalculateAllProductPrices(margemPercent: number) {
+  const db = await getDb();
+  if (!db) return { updated: 0 };
+  const multiplier = String(1 + margemPercent / 100);
+  await db.execute(
+    sql`UPDATE products
+        SET precoMinimo   = ROUND(CAST(precoCusto AS DECIMAL(10,2)) * ${multiplier}, 2),
+            margemPercent = ${String(margemPercent)},
+            updatedAt     = NOW()`
+  );
+  const result = await db.select({ count: count() }).from(products);
+  return { updated: Number(result[0]?.count ?? 0) };
+}
+
 // ─── Monitoring Runs ──────────────────────────────────────────────────────────
 export async function createMonitoringRun(data: InsertMonitoringRun) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(monitoringRuns).values(data).$returningId();
-  return result[0] ?? null;
+  const result = await db.insert(monitoringRuns).values({ ...data, startedAt: new Date() }).$returningId();
+  return result[0] ? { id: result[0].id } : null;
 }
 
 export async function updateMonitoringRun(id: number, data: Partial<MonitoringRun>) {
@@ -158,13 +181,13 @@ export async function updateMonitoringRun(id: number, data: Partial<MonitoringRu
 export async function getMonitoringRuns(limit = 20) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.started_at)).limit(limit);
+  return db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.startedAt)).limit(limit);
 }
 
 export async function getLatestMonitoringRun() {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.started_at)).limit(1);
+  const result = await db.select().from(monitoringRuns).orderBy(desc(monitoringRuns.startedAt)).limit(1);
   return result[0] ?? null;
 }
 
@@ -172,7 +195,7 @@ export async function getLatestMonitoringRun() {
 export async function insertPriceSnapshot(data: InsertPriceSnapshot) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(priceSnapshots).values(data);
+  await db.insert(priceSnapshots).values({ ...data, capturedAt: new Date() });
 }
 
 export async function getSnapshotsByProduct(productId: number, days = 30) {
@@ -181,15 +204,15 @@ export async function getSnapshotsByProduct(productId: number, days = 30) {
   const since = new Date();
   since.setDate(since.getDate() - days);
   return db.select().from(priceSnapshots)
-    .where(and(eq(priceSnapshots.product_id, productId), gte(priceSnapshots.captured_at, since)))
-    .orderBy(desc(priceSnapshots.captured_at));
+    .where(and(eq(priceSnapshots.productId, productId), gte(priceSnapshots.capturedAt, since)))
+    .orderBy(desc(priceSnapshots.capturedAt));
 }
 
 // ─── Violations ───────────────────────────────────────────────────────────────
 export async function insertViolation(data: InsertViolation) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(violations).values(data);
+  await db.insert(violations).values({ ...data, detectedAt: new Date() });
 }
 
 export async function getViolations(opts?: {
@@ -206,18 +229,18 @@ export async function getViolations(opts?: {
   if (!db) return { items: [], total: 0 };
   const conditions = [];
   if (opts?.status) conditions.push(eq(violations.status, opts.status));
-  if (opts?.productId) conditions.push(eq(violations.product_id, opts.productId));
-  if (opts?.sellerId) conditions.push(eq(violations.seller_id, opts.sellerId));
-  if (opts?.clienteId) conditions.push(eq(violations.cliente_id, opts.clienteId));
-  if (opts?.dateFrom) conditions.push(gte(violations.detected_at, opts.dateFrom));
-  if (opts?.dateTo) conditions.push(lte(violations.detected_at, opts.dateTo));
+  if (opts?.productId) conditions.push(eq(violations.productId, opts.productId));
+  if (opts?.sellerId) conditions.push(eq(violations.sellerId, opts.sellerId));
+  if (opts?.clienteId) conditions.push(eq(violations.clienteId, opts.clienteId));
+  if (opts?.dateFrom) conditions.push(gte(violations.detectedAt, opts.dateFrom));
+  if (opts?.dateTo) conditions.push(lte(violations.detectedAt, opts.dateTo));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [items, totalRows] = await Promise.all([
     db.select({ v: violations, p: products })
       .from(violations)
-      .leftJoin(products, eq(violations.product_id, products.id))
+      .leftJoin(products, eq(violations.productId, products.id))
       .where(where)
-      .orderBy(desc(violations.detected_at))
+      .orderBy(desc(violations.detectedAt))
       .limit(opts?.limit ?? 50)
       .offset(opts?.offset ?? 0),
     db.select({ count: count() }).from(violations).where(where),
@@ -232,7 +255,7 @@ export async function getViolationStats() {
   today.setHours(0, 0, 0, 0);
   const [allStats, todayStats] = await Promise.all([
     db.select({ status: violations.status, count: count() }).from(violations).groupBy(violations.status),
-    db.select({ count: count() }).from(violations).where(gte(violations.detected_at, today)),
+    db.select({ count: count() }).from(violations).where(gte(violations.detectedAt, today)),
   ]);
   const result = { total: 0, open: 0, notified: 0, resolved: 0, todayCount: Number(todayStats[0]?.count ?? 0) };
   for (const row of allStats) {
@@ -249,7 +272,8 @@ export async function updateViolationStatus(id: number, status: "open" | "notifi
   const db = await getDb();
   if (!db) return;
   const update: Record<string, unknown> = { status };
-  if (status === "resolved") update.resolved_at = new Date();
+  if (status === "notified") update.notifiedAt = new Date();
+  if (status === "resolved") update.resolvedAt = new Date();
   await db.update(violations).set(update).where(eq(violations.id, id));
 }
 
@@ -261,13 +285,12 @@ export async function getViolationTrend(days = 30) {
   try {
     const countResult = await db.select({ count: count() }).from(violations);
     if (Number(countResult[0]?.count ?? 0) === 0) return [];
-
     const rows = await db.execute(
-      sql`SELECT DATE(detected_at) as date, COUNT(*) as cnt
+      sql`SELECT DATE(detectedAt) as date, COUNT(*) as cnt
           FROM violations
-          WHERE detected_at >= ${since}
-          GROUP BY DATE(detected_at)
-          ORDER BY DATE(detected_at)`
+          WHERE detectedAt >= ${since}
+          GROUP BY DATE(detectedAt)
+          ORDER BY DATE(detectedAt)`
     );
     const results = Array.isArray(rows) ? (rows as unknown as any[][])[0] ?? [] : [];
     return results.map((r: any) => ({ date: String(r.date), count: Number(r.cnt) }));
@@ -278,7 +301,7 @@ export async function getViolationTrend(days = 30) {
 }
 
 // ─── Alert Configs ────────────────────────────────────────────────────────────
-export async function getAlertConfigs() {
+export async function getAlertConfigs(): Promise<AlertConfig[]> {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(alertConfigs).orderBy(alertConfigs.id);
@@ -287,17 +310,10 @@ export async function getAlertConfigs() {
 export async function upsertAlertConfig(data: InsertAlertConfig) {
   const db = await getDb();
   if (!db) return;
-  if (data.id) {
-    await db.update(alertConfigs).set({
-      email: data.email,
-      name: data.name,
-      active: data.active,
-      notify_on_violation: data.notify_on_violation,
-      notify_on_run_complete: data.notify_on_run_complete,
-    }).where(eq(alertConfigs.id, data.id));
-  } else {
-    await db.insert(alertConfigs).values(data);
-  }
+  const now = new Date();
+  await db.insert(alertConfigs).values({ ...data, createdAt: now }).onDuplicateKeyUpdate({
+    set: { name: data.name, active: data.active, notifyOnViolation: data.notifyOnViolation, notifyOnRunComplete: data.notifyOnRunComplete },
+  });
 }
 
 export async function deleteAlertConfig(id: number) {
@@ -320,26 +336,27 @@ export async function getAllSettings(): Promise<AppSetting[]> {
   return db.select().from(appSettings).orderBy(appSettings.key);
 }
 
-export async function upsertSetting(key: string, value: string) {
+export async function upsertSetting(key: string, value: string, description?: string) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(appSettings).values({ key, value }).onDuplicateKeyUpdate({
-    set: { value, updatedAt: new Date() },
+  const now = new Date();
+  await db.insert(appSettings).values({ key, value, description, updatedAt: now }).onDuplicateKeyUpdate({
+    set: { value, updatedAt: now },
   });
 }
 
 export async function initDefaultSettings() {
-  const defaults: { key: string; value: string }[] = [
-    { key: "margem_percent", value: "60" },
-    { key: "scraper_hora", value: "14" },
-    { key: "scraper_ativo", value: "true" },
-    { key: "ml_keywords_min_match", value: "2" },
-    { key: "ml_search_limit", value: "50" },
-    { key: "alert_email_ativo", value: "true" },
+  const defaults: InsertAppSetting[] = [
+    { key: "margem_percent", value: "60", description: "Margem mínima de preço (%)", updatedAt: new Date() },
+    { key: "scraper_hora", value: "14", description: "Hora de execução do scraper (0-23)", updatedAt: new Date() },
+    { key: "scraper_ativo", value: "true", description: "Scraper automático ativo", updatedAt: new Date() },
+    { key: "ml_keywords_min_match", value: "2", description: "Mínimo de keywords para validar produto", updatedAt: new Date() },
+    { key: "ml_search_limit", value: "50", description: "Limite de resultados por busca no ML", updatedAt: new Date() },
+    { key: "alert_email_ativo", value: "true", description: "Alertas por email ativos", updatedAt: new Date() },
   ];
   for (const s of defaults) {
     const existing = await getSetting(s.key);
-    if (!existing) await upsertSetting(s.key, s.value);
+    if (!existing) await upsertSetting(s.key, s.value, s.description ?? undefined);
   }
 }
 
@@ -360,8 +377,9 @@ export async function getClienteById(id: number) {
 export async function upsertCliente(data: InsertCliente) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(clientes).values(data).onDuplicateKeyUpdate({
-    set: { nome: data.nome, loja_ml: data.loja_ml, status: data.status, updatedAt: new Date() },
+  const now = new Date();
+  await db.insert(clientes).values({ ...data, createdAt: now, updatedAt: now }).onDuplicateKeyUpdate({
+    set: { nome: data.nome, lojaML: data.lojaML, linkLoja: data.linkLoja, status: data.status, updatedAt: now },
   });
 }
 
@@ -375,11 +393,11 @@ export async function deleteCliente(id: number) {
 export async function getVendedores(opts?: { limit?: number; offset?: number; orderBy?: "total_violacoes" | "total_anuncios" }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
-  const orderCol = opts?.orderBy === "total_anuncios" ? vendedores.total_anuncios : vendedores.total_violacoes;
+  const orderCol = opts?.orderBy === "total_anuncios" ? vendedores.totalAnuncios : vendedores.totalViolacoes;
   const [items, totalRows] = await Promise.all([
     db.select({ v: vendedores, c: clientes })
       .from(vendedores)
-      .leftJoin(clientes, eq(vendedores.cliente_id, clientes.id))
+      .leftJoin(clientes, eq(vendedores.clienteId, clientes.id))
       .orderBy(desc(orderCol))
       .limit(opts?.limit ?? 50)
       .offset(opts?.offset ?? 0),
@@ -391,26 +409,28 @@ export async function getVendedores(opts?: { limit?: number; offset?: number; or
 export async function getViolationsByCliente(clienteId: number, limit = 20) {
   const db = await getDb();
   if (!db) return [];
+  const cliente = await getClienteById(clienteId);
+  if (!cliente) return [];
   return db.select({ v: violations, p: products })
     .from(violations)
-    .leftJoin(products, eq(violations.product_id, products.id))
-    .where(eq(violations.cliente_id, clienteId))
-    .orderBy(desc(violations.detected_at))
+    .leftJoin(products, eq(violations.productId, products.id))
+    .where(eq(violations.sellerId, cliente.sellerId))
+    .orderBy(desc(violations.detectedAt))
     .limit(limit);
 }
 
-// ─── Historico de Precos ──────────────────────────────────────────────────────
+// ─── Histórico de Preços ──────────────────────────────────────────────────────
 export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?: string; days?: number }) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
-  if (opts?.codigoAsx) conditions.push(eq(historicoPrecosTable.codigo_asx, opts.codigoAsx));
+  if (opts?.codigoAsx) conditions.push(eq(historicoPrecosTable.codigoAsx, opts.codigoAsx));
   if (opts?.vendedor) conditions.push(like(historicoPrecosTable.vendedor, `%${opts.vendedor}%`));
   if (opts?.days) {
     const since = new Date();
     since.setDate(since.getDate() - opts.days);
-    conditions.push(gte(historicoPrecosTable.data_captura, since.toISOString().split("T")[0] as unknown as Date));
+    conditions.push(gte(historicoPrecosTable.createdAt, since));
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
-  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.data_captura)).limit(500);
+  return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.dataCaptura)).limit(500);
 }

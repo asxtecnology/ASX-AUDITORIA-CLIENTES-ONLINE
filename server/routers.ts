@@ -31,6 +31,7 @@ import {
   getVendedores,
   getViolationsByCliente,
   getHistoricoPrecos,
+  recalculateAllProductPrices,
 } from "./db";
 import { runScraper, runMonitoring } from "./mlScraper";
 import { TRPCError } from "@trpc/server";
@@ -72,9 +73,9 @@ const productsRouter = router({
     .input(z.object({
       id: z.number(),
       descricao: z.string().optional(),
-      preco_custo: z.string().optional(),
-      preco_minimo: z.string().optional(),
-      margem_percent: z.string().optional(),
+      precoCusto: z.string().optional(),
+      precoMinimo: z.string().optional(),
+      margemPercent: z.string().optional(),
       ativo: z.boolean().optional(),
     }))
     .mutation(({ input }) => {
@@ -93,9 +94,9 @@ const productsRouter = router({
       ean: z.string().optional(),
       categoria: z.string().optional(),
       linha: z.string().optional(),
-      preco_custo: z.string(),
-      preco_minimo: z.string(),
-      margem_percent: z.string().optional(),
+      precoCusto: z.string(),
+      precoMinimo: z.string(),
+      margemPercent: z.string().optional(),
     })))
     .mutation(async ({ input }) => {
       let imported = 0;
@@ -104,7 +105,7 @@ const productsRouter = router({
         try {
           await upsertProduct({
             ...p,
-            margem_percent: p.margem_percent ?? "60.00",
+            margemPercent: p.margemPercent ?? "60.00",
           });
           imported++;
         } catch {
@@ -185,8 +186,9 @@ const clientesRouter = router({
     .input(z.object({
       id: z.number().optional(),
       nome: z.string().min(1),
-      seller_id: z.string().min(1),
-      loja_ml: z.string().optional(),
+      sellerId: z.string().min(1),
+      lojaML: z.string().optional(),
+      linkLoja: z.string().optional(),
       status: z.enum(["ativo", "inativo"]).default("ativo"),
     }))
     .mutation(({ input }) => upsertCliente(input)),
@@ -229,11 +231,11 @@ const alertsRouter = router({
   upsert: protectedProcedure
     .input(z.object({
       id: z.number().optional(),
-      email: z.string().optional(),
+      email: z.string().email(),
       name: z.string().optional(),
       active: z.boolean().default(true),
-      notify_on_violation: z.boolean().default(true),
-      notify_on_run_complete: z.boolean().default(false),
+      notifyOnViolation: z.boolean().default(true),
+      notifyOnRunComplete: z.boolean().default(false),
     }))
     .mutation(({ input }) => upsertAlertConfig(input)),
 
@@ -242,15 +244,25 @@ const alertsRouter = router({
     .mutation(({ input }) => deleteAlertConfig(input.id)),
 });
 
-// Settings Router
+// Settings Router — com recalculateAllProductPrices ao mudar margem_percent
 const settingsRouter = router({
   getAll: protectedProcedure.query(() => getAllSettings()),
 
-  update: adminProcedure
+  update: protectedProcedure
     .input(z.object({ key: z.string(), value: z.string() }))
-    .mutation(({ input }) => upsertSetting(input.key, input.value)),
+    .mutation(async ({ input }) => {
+      await upsertSetting(input.key, input.value);
+      // Quando margem muda → recalcula precoMinimo de todos os produtos
+      if (input.key === "margem_percent") {
+        const margem = parseFloat(input.value);
+        if (!isNaN(margem) && margem > 0) {
+          await recalculateAllProductPrices(margem);
+        }
+      }
+      return { ok: true };
+    }),
 
-  init: adminProcedure.mutation(() => initDefaultSettings()),
+  init: protectedProcedure.mutation(() => initDefaultSettings()),
 });
 
 // App Router

@@ -304,8 +304,8 @@ export async function runScraper(
   // Criar registro de execucao
   const runInsert = await db.insert(monitoringRuns).values({
     status: "running",
-    triggered_by: triggeredBy,
-    cliente_id: options.clienteId ?? null,
+    triggeredBy: triggeredBy,
+    clienteId: options.clienteId ?? null,
     plataforma: "mercadolivre",
   }).$returningId();
   const runId = runInsert[0]?.id as number;
@@ -323,7 +323,7 @@ export async function runScraper(
         codigo: products.codigo,
         descricao: products.descricao,
         ean: products.ean,
-        precoMinimo: products.preco_minimo,
+        precoMinimo: products.precoMinimo,
       })
       .from(products)
       .where(eq(products.ativo, true));
@@ -345,9 +345,9 @@ export async function runScraper(
 
     // -- FASE 1: Busca cirurgica por loja do cliente --
     for (const cliente of clientesList) {
-      const searchKey = cliente.seller_id && /^\d+$/.test(cliente.seller_id)
-        ? cliente.seller_id
-        : cliente.loja_ml;
+      const searchKey = cliente.sellerId && /^\d+$/.test(cliente.sellerId)
+        ? cliente.sellerId
+        : cliente.lojaML;
 
       if (!searchKey) {
         console.warn(`[Scraper v3] Cliente ${cliente.nome} sem seller_id nem loja_ml, pulando`);
@@ -386,20 +386,20 @@ export async function runScraper(
             const snapInsert = await db
               .insert(priceSnapshots)
               .values({
-                run_id: runId,
-                product_id: matchResult.productId,
-                seller_name: cliente.nome,
-                seller_id: cliente.seller_id ?? String(cliente.id),
-                cliente_id: cliente.id,
-                ml_item_id: item.mlbId,
-                ml_title: item.title,
-                ml_url: item.url,
-                ml_thumbnail: item.thumbnail,
-                preco_anunciado: String(item.price),
-                preco_minimo: String(matchResult.precoMinimo),
-                is_violation: isViolation,
+                runId: runId,
+                productId: matchResult.productId,
+                sellerName: cliente.nome,
+                sellerId: cliente.sellerId ?? String(cliente.id),
+                clienteId: cliente.id,
+                mlItemId: item.mlbId,
+                mlTitle: item.title,
+                mlUrl: item.url,
+                mlThumbnail: item.thumbnail,
+                precoAnunciado: String(item.price),
+                precoMinimo: String(matchResult.precoMinimo),
+                isViolation: isViolation,
                 confianca: matchResult.confianca,
-                metodo_match: matchResult.metodoMatch,
+                metodoMatch: matchResult.metodoMatch,
                 plataforma: "mercadolivre",
               }).$returningId();
             snapshotId = snapInsert[0]?.id ?? 0;
@@ -416,22 +416,22 @@ export async function runScraper(
               await db
                 .insert(violations)
                 .values({
-                  snapshot_id: snapshotId,
-                  run_id: runId,
-                  product_id: matchResult.productId,
-                  cliente_id: cliente.id,
-                  seller_name: cliente.nome,
-                  seller_id: cliente.seller_id ?? String(cliente.id),
-                  ml_item_id: item.mlbId,
-                  ml_url: item.url,
-                  ml_thumbnail: item.thumbnail,
-                  ml_title: item.title,
-                  preco_anunciado: String(item.price),
-                  preco_minimo: String(matchResult.precoMinimo),
+                  snapshotId: snapshotId,
+                  runId: runId,
+                  productId: matchResult.productId,
+                  clienteId: cliente.id,
+                  sellerName: cliente.nome,
+                  sellerId: cliente.sellerId ?? String(cliente.id),
+                  mlItemId: item.mlbId,
+                  mlUrl: item.url,
+                  mlThumbnail: item.thumbnail,
+                  mlTitle: item.title,
+                  precoAnunciado: String(item.price),
+                  precoMinimo: String(matchResult.precoMinimo),
                   diferenca: String(diferenca.toFixed(2)),
-                  percent_abaixo: String(percentAbaixo.toFixed(2)),
+                  percentAbaixo: String(percentAbaixo.toFixed(2)),
                   confianca: matchResult.confianca,
-                  metodo_match: matchResult.metodoMatch,
+                  metodoMatch: matchResult.metodoMatch,
                   plataforma: "mercadolivre",
                   status: "open",
                 });
@@ -448,12 +448,12 @@ export async function runScraper(
             await db
               .insert(historicoPrecosTable)
               .values({
-                codigo_asx: matchResult.codigo,
+                codigoAsx: matchResult.codigo,
                 plataforma: "mercadolivre",
                 vendedor: cliente.nome,
-                item_id: item.mlbId,
+                itemId: item.mlbId,
                 preco: String(item.price),
-                data_captura: today,
+                dataCaptura: today.toISOString().split("T")[0],
               });
           } catch (e: any) {
             if (!e.message?.includes("duplicate") && !e.message?.includes("unique")) {
@@ -465,12 +465,12 @@ export async function runScraper(
           // Ranking de vendedores (raw SQL - snake_case columns)
           try {
             await db.execute(
-              sql`INSERT INTO vendedores (plataforma, vendedor_id, nome, cliente_id, total_violacoes, total_anuncios)
-                  VALUES ('mercadolivre', ${cliente.seller_id ?? String(cliente.id)}, ${cliente.nome}, ${cliente.id}, ${isViolation ? 1 : 0}, 1)
+              sql`INSERT INTO vendedores (plataforma, vendedorId, nome, clienteId, totalViolacoes, totalAnuncios)
+                  VALUES ('mercadolivre', ${cliente.sellerId ?? String(cliente.id)}, ${cliente.nome}, ${cliente.id}, ${isViolation ? 1 : 0}, 1)
                   ON DUPLICATE KEY UPDATE
-                    total_anuncios = total_anuncios + 1,
-                    total_violacoes = total_violacoes + ${isViolation ? 1 : 0},
-                    ultima_vez = NOW()`
+                    totalAnuncios = totalAnuncios + 1,
+                    totalViolacoes = totalViolacoes + ${isViolation ? 1 : 0},
+                    ultimaVez = NOW()`
             );
           } catch (e: any) {
             dbErrors.push(`vendedor: ${e.message}`);
@@ -485,9 +485,9 @@ export async function runScraper(
       await db
         .update(clientes)
         .set({
-          total_produtos: clienteFound,
-          total_violacoes: clienteViolations,
-          ultima_verificacao: new Date(),
+          totalProdutos: clienteFound,
+          totalViolacoes: clienteViolations,
+          ultimaVerificacao: new Date(),
         })
         .where(eq(clientes.id, cliente.id));
 
@@ -551,20 +551,20 @@ export async function runScraper(
           try {
             const snap2Insert = await db.insert(priceSnapshots)
               .values({
-                run_id: runId,
-                product_id: matchResult.productId,
-                seller_name: item.sellerEl || "Vendedor Desconhecido",
-                seller_id: item.mlbId,
-                cliente_id: null,
-                ml_item_id: item.mlbId,
-                ml_title: item.title,
-                ml_url: item.href.split("#")[0],
-                ml_thumbnail: item.thumbnail,
-                preco_anunciado: String(item.price),
-                preco_minimo: String(matchResult.precoMinimo),
-                is_violation: isViolation,
+                runId: runId,
+                productId: matchResult.productId,
+                sellerName: item.sellerEl || "Vendedor Desconhecido",
+                sellerId: item.mlbId,
+                clienteId: null,
+                mlItemId: item.mlbId,
+                mlTitle: item.title,
+                mlUrl: item.href.split("#")[0],
+                mlThumbnail: item.thumbnail,
+                precoAnunciado: String(item.price),
+                precoMinimo: String(matchResult.precoMinimo),
+                isViolation: isViolation,
                 confianca: matchResult.confianca,
-                metodo_match: matchResult.metodoMatch,
+                metodoMatch: matchResult.metodoMatch,
                 plataforma: "mercadolivre",
               }).$returningId();
             snapshotId = snap2Insert[0]?.id ?? 0;
@@ -579,21 +579,21 @@ export async function runScraper(
             try {
               await db.insert(violations)
                 .values({
-                  snapshot_id: snapshotId,
-                  run_id: runId,
-                  product_id: matchResult.productId,
-                  seller_name: item.sellerEl || "Vendedor Desconhecido",
-                  seller_id: item.mlbId,
-                  ml_item_id: item.mlbId,
-                  ml_url: item.href.split("#")[0],
-                  ml_thumbnail: item.thumbnail,
-                  ml_title: item.title,
-                  preco_anunciado: String(item.price),
-                  preco_minimo: String(matchResult.precoMinimo),
+                  snapshotId: snapshotId,
+                  runId: runId,
+                  productId: matchResult.productId,
+                  sellerName: item.sellerEl || "Vendedor Desconhecido",
+                  sellerId: item.mlbId,
+                  mlItemId: item.mlbId,
+                  mlUrl: item.href.split("#")[0],
+                  mlThumbnail: item.thumbnail,
+                  mlTitle: item.title,
+                  precoAnunciado: String(item.price),
+                  precoMinimo: String(matchResult.precoMinimo),
                   diferenca: String(diferenca.toFixed(2)),
-                  percent_abaixo: String(percentAbaixo.toFixed(2)),
+                  percentAbaixo: String(percentAbaixo.toFixed(2)),
                   confianca: matchResult.confianca,
-                  metodo_match: matchResult.metodoMatch,
+                  metodoMatch: matchResult.metodoMatch,
                   plataforma: "mercadolivre",
                   status: "open",
                 });
@@ -611,10 +611,10 @@ export async function runScraper(
       .update(monitoringRuns)
       .set({
         status: "completed" as const,
-        finished_at: new Date(),
-        products_found: totalFound,
-        violations_found: totalViolations,
-        error_message: dbErrors.length > 0
+        finishedAt: new Date(),
+        productsFound: totalFound,
+        totalViolations: totalViolations,
+        errorMessage: dbErrors.length > 0
           ? `${dbErrors.length} erros de DB: ${dbErrors.slice(0, 5).join("; ")}`
           : null,
       })
@@ -638,8 +638,8 @@ export async function runScraper(
       .update(monitoringRuns)
       .set({
         status: "failed" as const,
-        finished_at: new Date(),
-        error_message: err.message,
+        finishedAt: new Date(),
+        errorMessage: err.message,
       })
       .where(eq(monitoringRuns.id, runId));
     throw err;

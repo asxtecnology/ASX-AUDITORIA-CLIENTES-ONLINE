@@ -32,8 +32,8 @@ export default function Alerts() {
       email: newEmail,
       name: newName || undefined,
       active: true,
-      notify_on_violation: notifyOnViolation,
-      notify_on_run_complete: notifyOnRunComplete,
+      notifyOnViolation: notifyOnViolation,
+      notifyOnRunComplete: notifyOnRunComplete,
     });
   };
 
@@ -134,9 +134,9 @@ export default function Alerts() {
                       <p className="text-sm font-medium text-foreground">{cfg.email || "Sem email"}</p>
                       <p className="text-xs text-muted-foreground">
                         {cfg.name && <span>{cfg.name} · </span>}
-                        {cfg.notify_on_violation ? "Violacoes" : ""}
-                        {cfg.notify_on_violation && cfg.notify_on_run_complete ? " + " : ""}
-                        {cfg.notify_on_run_complete ? "Resumo" : ""}
+                        {cfg.notifyOnViolation ? "Violacoes" : ""}
+                        {cfg.notifyOnViolation && cfg.notifyOnRunComplete ? " + " : ""}
+                        {cfg.notifyOnRunComplete ? "Resumo" : ""}
                       </p>
                     </div>
                   </div>
