@@ -132,52 +132,84 @@ export function categorizarProduto(
 
 // -- Sistema de Confianca --
 const CONNECTOR_PATTERNS = [
-  "H1", "H3", "H4", "H7", "H8", "H9", "H11", "H13", "H15", "H16", "H27",
-  "HB3", "HB4", "T10", "T5", "P21W", "T15", "W16W", "D1S", "D2S", "D3S",
-  "D4S", "9005", "9006", "9012",
+  // Ordenados do mais específico para o menos, para evitar que "H1" match antes de "H11"
+  "HIR2", "HB3", "HB4",
+  "H27", "H16", "H15", "H13", "H11", "H9", "H8", "H7", "H4", "H3", "H1",
+  "D1S", "D2S", "D3S", "D4S",
+  "T15", "T10", "T5",
+  "P21W", "W16W",
+  "9012", "9006", "9005",
 ];
+
 const PRODUCT_LINES = [
-  "ULTRA LED", "SUPER LED", "WORKLIGHT", "XENON", "ECO PLUGIN",
+  "ULTRA LED CSP",
+  "ULTRA LED PLUS",
+  "ULTRA LED",
+  "SUPER LED",
+  "WORKLIGHT",
+  "XENON",
+  "ECO PLUGIN",
 ];
+
+// Extrai potência do título: "70W", "70 W", "70w" → "70"
+function extractWattage(title: string): string | null {
+  const m = title.toUpperCase().match(/\b(\d{2,3})\s*W\b/);
+  return m ? m[1] : null;
+}
+
+// Extrai lúmens do título: "10000 lúmens", "10.000 lumens" → "10000"
+function extractLumens(title: string): string | null {
+  const m = title.toUpperCase().replace(/\./g, "").match(/\b(\d{4,6})\s*L[UÚ]MENS?\b/i);
+  return m ? m[1] : null;
+}
 
 export function matchProduct(
   mlTitle: string,
   catalog: CatalogItem[]
 ): MatchResult | null {
-  const titleUpper = mlTitle.toUpperCase();
+  const titleUpper = mlTitle.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+  // ── 1. Código ASX exato no título (ex: "ASX1007") — confiança 100 ──
   for (const prod of catalog) {
-    const precoMinimo = Number(prod.precoMinimo);
-
-    // 1. Match por codigo ASX exato no titulo (confianca 100)
     if (titleUpper.includes(prod.codigo.toUpperCase())) {
       return {
         productId: prod.id,
         codigo: prod.codigo,
         descricao: prod.descricao,
-        precoMinimo,
+        precoMinimo: Number(prod.precoMinimo),
         confianca: 100,
         metodoMatch: "codigo",
       };
     }
   }
 
-  // 2-4. Matching por keywords
+  // Anúncios sem "ASX" não são da marca — descartar
   const hasASX = titleUpper.includes("ASX");
   if (!hasASX) return null;
 
-  const foundLine = PRODUCT_LINES.find((l) => titleUpper.includes(l));
-  const foundConnector = CONNECTOR_PATTERNS.find((c) =>
+  // Extrair características do título
+  const foundLine       = PRODUCT_LINES.find((l) => titleUpper.includes(l));
+  const foundConnector  = CONNECTOR_PATTERNS.find((c) =>
     new RegExp(`\\b${c}\\b`).test(titleUpper)
   );
+  const foundWattage    = extractWattage(titleUpper);
+  const foundLumens     = extractLumens(titleUpper);
 
-  // Match por linha + conector (confianca 85)
+  // Helper: verifica se a descrição do produto bate com a potência do título
+  function wattageMatches(descricao: string): boolean {
+    if (!foundWattage) return true; // sem info de W, não filtra
+    const dUpper = descricao.toUpperCase();
+    return new RegExp(`\\b${foundWattage}\\s*W\\b`).test(dUpper);
+  }
+
+  // ── 2. Linha + Conector + Potência — confiança 95 ──
   if (foundLine && foundConnector) {
     const match = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
       return (
         d.includes(foundLine) &&
-        new RegExp(`\\b${foundConnector}\\b`).test(d)
+        new RegExp(`\\b${foundConnector}\\b`).test(d) &&
+        wattageMatches(d)
       );
     });
     if (match) {
@@ -186,13 +218,49 @@ export function matchProduct(
         codigo: match.codigo,
         descricao: match.descricao,
         precoMinimo: Number(match.precoMinimo),
+        confianca: 95,
+        metodoMatch: "linha_bulbo_watts",
+      };
+    }
+    // sem potência, linha + conector apenas
+    const matchNoW = catalog.find((p) => {
+      const d = p.descricao.toUpperCase();
+      return d.includes(foundLine) && new RegExp(`\\b${foundConnector}\\b`).test(d);
+    });
+    if (matchNoW) {
+      return {
+        productId: matchNoW.id,
+        codigo: matchNoW.codigo,
+        descricao: matchNoW.descricao,
+        precoMinimo: Number(matchNoW.precoMinimo),
         confianca: 85,
         metodoMatch: "linha_bulbo",
       };
     }
   }
 
-  // Match por ASX + conector (confianca 70)
+  // ── 3. Conector + Potência (sem linha no título) — confiança 80 ──
+  if (foundConnector && foundWattage) {
+    const match = catalog.find((p) => {
+      const d = p.descricao.toUpperCase();
+      return (
+        new RegExp(`\\b${foundConnector}\\b`).test(d) &&
+        wattageMatches(d)
+      );
+    });
+    if (match) {
+      return {
+        productId: match.id,
+        codigo: match.codigo,
+        descricao: match.descricao,
+        precoMinimo: Number(match.precoMinimo),
+        confianca: 80,
+        metodoMatch: "bulbo_watts",
+      };
+    }
+  }
+
+  // ── 4. Apenas conector — confiança 70 ──
   if (foundConnector) {
     const match = catalog.find((p) =>
       new RegExp(`\\b${foundConnector}\\b`).test(p.descricao.toUpperCase())
@@ -204,12 +272,51 @@ export function matchProduct(
         descricao: match.descricao,
         precoMinimo: Number(match.precoMinimo),
         confianca: 70,
-        metodoMatch: "marca_bulbo",
+        metodoMatch: "bulbo",
       };
     }
   }
 
-  // Match apenas por ASX (confianca 50 - minimo aceitavel)
+  // ── 5. Linha + Potência (sem conector no título) — confiança 65 ──
+  if (foundLine && foundWattage) {
+    const candidates = catalog.filter((p) => {
+      const d = p.descricao.toUpperCase();
+      return d.includes(foundLine) && wattageMatches(d);
+    });
+    if (candidates.length > 0) {
+      const match = candidates.reduce((a, b) =>
+        Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
+      );
+      return {
+        productId: match.id,
+        codigo: match.codigo,
+        descricao: match.descricao,
+        precoMinimo: Number(match.precoMinimo),
+        confianca: 65,
+        metodoMatch: "linha_watts",
+      };
+    }
+  }
+
+  // ── 6. Potência + lumens sem conector — confiança 60 ──
+  if (foundWattage && (foundLine || foundLumens)) {
+    const candidates = catalog.filter((p) => wattageMatches(p.descricao));
+    if (candidates.length > 0) {
+      const match = candidates.reduce((a, b) =>
+        Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
+      );
+      return {
+        productId: match.id,
+        codigo: match.codigo,
+        descricao: match.descricao,
+        precoMinimo: Number(match.precoMinimo),
+        confianca: 60,
+        metodoMatch: "watts_lumens",
+      };
+    }
+  }
+
+  // ── 7. Apenas ASX — confiança 50 (mínimo aceitável) ──
   const firstProd = catalog[0];
   if (firstProd) {
     return {

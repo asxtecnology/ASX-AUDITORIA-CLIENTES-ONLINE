@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, nome, sellerId, lojaML, status FROM clientes WHERE sellerId = '186722996' OR nome = 'TECNO AUDIO' ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute SELECT id, nome, sellerId, lojaML, status FROM clientes WHERE sellerId = '186722996' OR nome = 'TECNO AUDIO' ORDER BY id;",
+  "rows": [
+    {
+      "id": "30005",
+      "nome": "EXTREME AUDIO",
+      "sellerId": "186722996",
+      "lojaML": "extreme-audio",
+      "status": "ativo"
+    },
+    {
+      "id": "60001",
+      "nome": "TECNO AUDIO",
+      "sellerId": "MLB3058625923",
+      "lojaML": "TECNOAUDIO ELETRONICA",
+      "status": "ativo"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tsellerId\tlojaML\tstatus\n30005\tEXTREME AUDIO\t186722996\textreme-audio\tativo\n60001\tTECNO AUDIO\tMLB3058625923\tTECNOAUDIO ELETRONICA\tativo\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}
