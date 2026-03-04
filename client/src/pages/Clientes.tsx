@@ -19,11 +19,37 @@ type Cliente = {
   nome: string;
   sellerId: string;
   lojaML: string | null;
+  linkLoja: string | null;
   status: "ativo" | "inativo";
   totalProdutos: number | null;
   totalViolacoes: number | null;
   ultimaVerificacao: Date | null;
 };
+
+/**
+ * Gera a URL da loja do cliente no Mercado Livre.
+ * Prioridade:
+ *   1. sellerId numérico → lista.mercadolivre.com.br/_CustId_{id}
+ *   2. lojaML nickname → lista.mercadolivre.com.br/_Loja_{nick}
+ *   3. linkLoja explícito (somente se NÃO for /perfil/)
+ *   4. sellerId não numérico (nickname direto)
+ *   5. null
+ */
+function buildClienteStoreUrl(cliente: Cliente): string | null {
+  if (cliente.sellerId && /^\d+$/.test(cliente.sellerId)) {
+    return `https://lista.mercadolivre.com.br/_CustId_${cliente.sellerId}`;
+  }
+  if (cliente.lojaML && cliente.lojaML !== "NULL" && cliente.lojaML.trim() !== "") {
+    return `https://lista.mercadolivre.com.br/_Loja_${cliente.lojaML}`;
+  }
+  if (cliente.linkLoja && !cliente.linkLoja.includes("/perfil/")) {
+    return cliente.linkLoja;
+  }
+  if (cliente.sellerId && cliente.sellerId.trim() !== "") {
+    return `https://lista.mercadolivre.com.br/_Loja_${cliente.sellerId}`;
+  }
+  return null;
+}
 
 function ClienteCard({ cliente, onCheck, onEdit, onDelete, isAdmin }: {
   cliente: Cliente;
@@ -82,31 +108,67 @@ function ClienteCard({ cliente, onCheck, onEdit, onDelete, isAdmin }: {
             : "Nunca verificado"}
         </p>
 
-        {/* Ações */}
-        <div className="flex gap-2">
+        {/* Ações — layout organizado em duas linhas */}
+        <div className="space-y-2">
+          {/* Linha 1: Verificar Agora (largura total) */}
           <Button
             size="sm"
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-foreground"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             onClick={() => onCheck(cliente.id)}
           >
             <RefreshCw className="w-3 h-3 mr-1" />
             Verificar Agora
           </Button>
-          {cliente.lojaML && (
-            <Button size="sm" variant="outline" className="border-border text-muted-foreground hover:bg-accent" asChild>
-              <a href={`https://www.mercadolivre.com.br/perfil/${cliente.lojaML}`} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </Button>
-          )}
-          <Button size="sm" variant="outline" className="border-border text-muted-foreground hover:bg-accent" onClick={() => onEdit(cliente)}>
-            <Edit className="w-3 h-3" />
-          </Button>
-          {isAdmin && (
-            <Button size="sm" variant="outline" className="border-red-800 text-red-400 hover:bg-red-900/30" onClick={() => onDelete(cliente.id)}>
-              <Trash2 className="w-3 h-3" />
-            </Button>
-          )}
+
+          {/* Linha 2: Ações secundárias (grid fixo, sem overflow) */}
+          {(() => {
+            const storeUrl = buildClienteStoreUrl(cliente);
+            return (
+              <div className="grid grid-cols-3 gap-2">
+                {storeUrl ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                    asChild
+                  >
+                    <a href={storeUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      Loja
+                    </a>
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-700 text-slate-500 cursor-not-allowed opacity-50"
+                    disabled
+                  >
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    Loja
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                  onClick={() => onEdit(cliente)}
+                >
+                  <Edit className="w-3 h-3 mr-1" />
+                  Editar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-red-800/60 text-red-400 hover:bg-red-900/30"
+                  onClick={() => onDelete(cliente.id)}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Excluir
+                </Button>
+              </div>
+            );
+          })()}
         </div>
       </CardContent>
     </Card>
