@@ -180,4 +180,13 @@
 - [x] Reiniciar servidor após patch
 - [x] Atualizar testes vitest (confiança 85→95 para linha_bulbo_watts, metodoMatch bulbo)
 - [x] 24/24 testes passando, 0 erros TypeScript
-- [ ] Testar 'Verificar Agora' na TECNO AUDIO (requer produção - ML bloqueia sandbox)
+- [x] Testar 'Verificar Agora' na TECNO AUDIO — Scraper v4 executado com sucesso:
+  - LS DISTRIBUIDORA: 35 produtos, 20 violações
+  - CSR PARTS: 18 produtos, 8 violações
+  - BERTO PARTS: 8 produtos, 8 violações
+  - EXTREME AUDIO: 0 produtos (sellerId incorreto, pendente)
+  - ACESSORIOS P/ CAMINHAO: 1 produto, 1 violação
+  - COMBAT SOM: 3 produtos, 0 violações
+  - TECNO AUDIO: 0 produtos (sellerId incorreto, pendente)
+  - Fase2 (busca geral): concluída
+  - Total: 115 anúncios encontrados, 76 violações detectadas

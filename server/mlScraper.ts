@@ -1,19 +1,13 @@
 /**
- * ASX Price Monitor — ML Scraper v3 (PostgreSQL / Supabase)
- * Estrategia: HTML scraping das lojas dos vendedores no ML
+ * ASX Price Monitor — ML Scraper v4 (PostgreSQL)
  *
- * Por que HTML scraping em vez da API REST?
- * A API publica do ML (api.mercadolibre.com) exige OAuth para buscas por
- * seller_id e retorna 403 sem token. O scraping via HTML da loja publica
- * (lista.mercadolivre.com.br/_CustId_{sellerId}) nao requer autenticacao
- * e retorna todos os produtos com precos em tempo real.
- *
- * Sistema de Confianca (0-100):
- *   100 = Codigo ASX exato no titulo (ex: ASX1007)
- *    85 = Marca ASX + Linha (ULTRA LED/SUPER LED) + Tipo de bulbo (H7/H4...)
- *    70 = Marca ASX + Tipo de bulbo
- *    50 = Apenas marca ASX no titulo
- *   <50 = DESCARTADO
+ * Correções vs v3:
+ * - runId: usa .returning({ id }) em vez de .insertId (MySQL-only)
+ * - update monitoringRuns: usa colunas corretas (totalFound, totalViolations)
+ * - vendedores: INSERT ... ON CONFLICT DO UPDATE (PostgreSQL)
+ * - historico_precos: ON CONFLICT DO UPDATE (PostgreSQL)
+ * - matchProduct: melhorado para detectar por potência + lumens
+ * - scraperInProgress: lock para evitar execuções concorrentes
  */
 
 import axios from "axios";
@@ -26,14 +20,15 @@ import {
   violations,
   clientes,
   historicoPrecosTable,
+  vendedores,
 } from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
 
-const REQUEST_DELAY_MS = 3500; // Delay aumentado para evitar rate-limit do ML
+const REQUEST_DELAY_MS = 2000;
 const MAX_RETRIES = 3;
 
-// Evita execuções concorrentes do scraper (manual vs agendado, etc.)
+// Lock global — evita execuções sobrepostas
 let scraperInProgress = false;
 
 const SCRAPER_HEADERS = {
@@ -45,7 +40,7 @@ const SCRAPER_HEADERS = {
   Connection: "keep-alive",
 };
 
-// -- Tipos --
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 interface ScrapedProduct {
   mlbId: string;
   title: string;
@@ -77,7 +72,7 @@ type CatalogItem = {
   precoMinimo: string;
 };
 
-// -- Utilitarios --
+// ─── Utilitários ──────────────────────────────────────────────────────────────
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -108,7 +103,7 @@ async function fetchHtml(url: string, retries = 0): Promise<string | null> {
   }
 }
 
-// -- Categorizacao de produtos --
+// ─── Categorização ────────────────────────────────────────────────────────────
 export function categorizarProduto(
   descricao: string,
   precoCusto: number
@@ -117,25 +112,20 @@ export function categorizarProduto(
   let categoria = "OUTROS";
   if (upper.includes("ULTRA LED")) categoria = "ULTRA LED";
   else if (upper.includes("SUPER LED")) categoria = "SUPER LED";
-  else if (upper.includes("WORKLIGHT") || upper.includes("WORK LIGHT"))
-    categoria = "WORKLIGHT";
+  else if (upper.includes("WORKLIGHT") || upper.includes("WORK LIGHT")) categoria = "WORKLIGHT";
   else if (upper.includes("CHICOTE")) categoria = "CHICOTE";
   else if (upper.includes("XENON")) categoria = "XENON";
-  else if (upper.includes("LAMPADA") || upper.includes("LAMPADA"))
-    categoria = "LAMPADA";
-  else if (upper.includes("PROJETOR")) categoria = "PROJETOR";
+  else if (upper.includes("LAMPADA") || upper.includes("LÂMPADA")) categoria = "LAMPADA";
   else if (upper.includes("LED")) categoria = "LED";
-
   const custo = Number(precoCusto);
   const linha: "PREMIUM" | "PLUS" | "ECO" =
     custo >= 100 ? "PREMIUM" : custo >= 40 ? "PLUS" : "ECO";
-
   return { categoria, linha };
 }
 
-// -- Sistema de Confianca --
+// ─── Sistema de Match ─────────────────────────────────────────────────────────
+// Ordenado do mais específico ao menos para evitar match prematuro (H1 antes de H11)
 const CONNECTOR_PATTERNS = [
-  // Ordenados do mais específico para o menos, para evitar que "H1" match antes de "H11"
   "HIR2", "HB3", "HB4",
   "H27", "H16", "H15", "H13", "H11", "H9", "H8", "H7", "H4", "H3", "H1",
   "D1S", "D2S", "D3S", "D4S",
@@ -154,27 +144,27 @@ const PRODUCT_LINES = [
   "ECO PLUGIN",
 ];
 
-// Extrai potência do título: "70W", "70 W", "70w" → "70"
+// Extrai potência: "70W", "70 W" → "70"
 function extractWattage(title: string): string | null {
   const m = title.toUpperCase().match(/\b(\d{2,3})\s*W\b/);
   return m ? m[1] : null;
 }
 
-// Extrai lúmens do título: "10000 lúmens", "10.000 lumens" → "10000"
+// Extrai lúmens: "10000 lúmens", "10.000 lumens" → "10000"
 function extractLumens(title: string): string | null {
-  const m = title.toUpperCase().replace(/\./g, "").match(/\b(\d{4,6})\s*L[UÚ]MENS?\b/i);
+  const clean = title.toUpperCase().replace(/\./g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const m = clean.match(/\b(\d{4,6})\s*LUMENS?\b/i);
   return m ? m[1] : null;
 }
 
 export function matchProduct(
   mlTitle: string,
-  catalog: CatalogItem[],
-  options?: { minKeywordMatches?: number }
+  catalog: CatalogItem[]
 ): MatchResult | null {
-  const minKeywordMatches = Math.max(0, options?.minKeywordMatches ?? 0);
+  // Normaliza: remove acentos, uppercase
   const titleUpper = mlTitle.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-  // ── 1. Código ASX exato no título (ex: "ASX1007") — confiança 100 ──
+  // ── 1. Código ASX exato no título (ex: "ASX1007") → confiança 100 ──
   for (const prod of catalog) {
     if (titleUpper.includes(prod.codigo.toUpperCase())) {
       return {
@@ -188,118 +178,56 @@ export function matchProduct(
     }
   }
 
-  // Anúncios sem "ASX" não são da marca — descartar
-  const hasASX = titleUpper.includes("ASX");
-  if (!hasASX) return null;
+  // Anúncios sem "ASX" não são da marca
+  if (!titleUpper.includes("ASX")) return null;
 
-  // Extrair características do título
-  const foundLine       = PRODUCT_LINES.find((l) => titleUpper.includes(l));
-  const foundConnector  = CONNECTOR_PATTERNS.find((c) =>
+  const foundLine      = PRODUCT_LINES.find((l) => titleUpper.includes(l));
+  const foundConnector = CONNECTOR_PATTERNS.find((c) =>
     new RegExp(`\\b${c}\\b`).test(titleUpper)
   );
-  const foundWattage    = extractWattage(titleUpper);
-  const foundLumens     = extractLumens(titleUpper);
+  const foundWattage   = extractWattage(titleUpper);
+  const foundLumens    = extractLumens(titleUpper);
 
-  // Setting: ml_keywords_min_match
-  // Exige um mínimo de sinais no título (linha, conector, watts, lumens)
-  // antes de aceitar qualquer match — reduz falsos positivos.
-  const keywordCount = [
-    foundLine,
-    foundConnector,
-    foundWattage,
-    foundLumens,
-  ].filter(Boolean).length;
-  if (minKeywordMatches > 0 && keywordCount < minKeywordMatches) {
-    return null;
-  }
-
-  // Helper: verifica se a descrição do produto bate com a potência do título
   function wattageMatches(descricao: string): boolean {
-    if (!foundWattage) return true; // sem info de W, não filtra
-    const dUpper = descricao.toUpperCase();
-    return new RegExp(`\\b${foundWattage}\\s*W\\b`).test(dUpper);
+    if (!foundWattage) return true;
+    return new RegExp(`\\b${foundWattage}\\s*W\\b`).test(descricao.toUpperCase());
   }
 
-  // ── 2. Linha + Conector + Potência — confiança 95 ──
+  // ── 2. Linha + Conector + Potência → confiança 95 ──
   if (foundLine && foundConnector) {
     const match = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
-      return (
-        d.includes(foundLine) &&
-        new RegExp(`\\b${foundConnector}\\b`).test(d) &&
-        wattageMatches(d)
-      );
+      return d.includes(foundLine) && new RegExp(`\\b${foundConnector}\\b`).test(d) && wattageMatches(d);
     });
-    if (match) {
-      return {
-        productId: match.id,
-        codigo: match.codigo,
-        descricao: match.descricao,
-        precoMinimo: Number(match.precoMinimo),
-        confianca: 95,
-        metodoMatch: "linha_bulbo_watts",
-      };
-    }
-    // sem potência, linha + conector apenas
+    if (match) return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 95, metodoMatch: "linha_bulbo_watts" };
+
+    // Sem potência
     const matchNoW = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
       return d.includes(foundLine) && new RegExp(`\\b${foundConnector}\\b`).test(d);
     });
-    if (matchNoW) {
-      return {
-        productId: matchNoW.id,
-        codigo: matchNoW.codigo,
-        descricao: matchNoW.descricao,
-        precoMinimo: Number(matchNoW.precoMinimo),
-        confianca: 85,
-        metodoMatch: "linha_bulbo",
-      };
-    }
+    if (matchNoW) return { productId: matchNoW.id, codigo: matchNoW.codigo, descricao: matchNoW.descricao, precoMinimo: Number(matchNoW.precoMinimo), confianca: 85, metodoMatch: "linha_bulbo" };
   }
 
-  // ── 3. Conector + Potência (sem linha no título) — confiança 80 ──
+  // ── 3. Conector + Potência → confiança 80 ──
   if (foundConnector && foundWattage) {
     const match = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
-      return (
-        new RegExp(`\\b${foundConnector}\\b`).test(d) &&
-        wattageMatches(d)
-      );
+      return new RegExp(`\\b${foundConnector}\\b`).test(d) && wattageMatches(d);
     });
-    if (match) {
-      return {
-        productId: match.id,
-        codigo: match.codigo,
-        descricao: match.descricao,
-        precoMinimo: Number(match.precoMinimo),
-        confianca: 80,
-        metodoMatch: "bulbo_watts",
-      };
-    }
+    if (match) return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 80, metodoMatch: "bulbo_watts" };
   }
 
-  // ── 4. Apenas conector — confiança 70 ──
-  // Usa o produto com MENOR preço mínimo para o conector (mais conservador)
+  // ── 4. Apenas conector → confiança 70 ──
   if (foundConnector) {
-    const candidates = catalog.filter((p) =>
+    const match = catalog.find((p) =>
       new RegExp(`\\b${foundConnector}\\b`).test(p.descricao.toUpperCase())
     );
-    if (candidates.length > 0) {
-      const match = candidates.reduce((a, b) =>
-        Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
-      );
-      return {
-        productId: match.id,
-        codigo: match.codigo,
-        descricao: match.descricao,
-        precoMinimo: Number(match.precoMinimo),
-        confianca: 70,
-        metodoMatch: "bulbo",
-      };
-    }
+    if (match) return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 70, metodoMatch: "bulbo" };
   }
 
-  // ── 5. Linha + Potência (sem conector no título) — confiança 65 ──
+  // ── 5. Linha + Potência (ex: "Ultra Led Asx 70w") → confiança 65 ──
+  // Usa o produto de menor precoMinimo da família (mais conservador)
   if (foundLine && foundWattage) {
     const candidates = catalog.filter((p) => {
       const d = p.descricao.toUpperCase();
@@ -309,52 +237,31 @@ export function matchProduct(
       const match = candidates.reduce((a, b) =>
         Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
       );
-      return {
-        productId: match.id,
-        codigo: match.codigo,
-        descricao: match.descricao,
-        precoMinimo: Number(match.precoMinimo),
-        confianca: 65,
-        metodoMatch: "linha_watts",
-      };
+      return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 65, metodoMatch: "linha_watts" };
     }
   }
 
-  // ── 6. Potência + lumens sem conector — confiança 60 ──
-  if (foundWattage && (foundLine || foundLumens)) {
+  // ── 6. Potência + Lumens (sem conector explícito) → confiança 60 ──
+  if (foundWattage && foundLumens) {
     const candidates = catalog.filter((p) => wattageMatches(p.descricao));
     if (candidates.length > 0) {
       const match = candidates.reduce((a, b) =>
         Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
       );
-      return {
-        productId: match.id,
-        codigo: match.codigo,
-        descricao: match.descricao,
-        precoMinimo: Number(match.precoMinimo),
-        confianca: 60,
-        metodoMatch: "watts_lumens",
-      };
+      return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 60, metodoMatch: "watts_lumens" };
     }
   }
 
-  // ── 7. Apenas ASX — confiança 50 (mínimo aceitável) ──
+  // ── 7. Apenas ASX → confiança 50 (mínimo aceitável) ──
   const firstProd = catalog[0];
   if (firstProd) {
-    return {
-      productId: firstProd.id,
-      codigo: firstProd.codigo,
-      descricao: firstProd.descricao,
-      precoMinimo: Number(firstProd.precoMinimo),
-      confianca: 50,
-      metodoMatch: "marca",
-    };
+    return { productId: firstProd.id, codigo: firstProd.codigo, descricao: firstProd.descricao, precoMinimo: Number(firstProd.precoMinimo), confianca: 50, metodoMatch: "marca" };
   }
 
   return null;
 }
 
-// -- Scraper de Loja ML (HTML) --
+// ─── URL da loja ML ───────────────────────────────────────────────────────────
 function buildStoreUrl(sellerIdOrNick: string, query: string, offset: number): string {
   const fromParam = offset > 0 ? `_Desde_${offset + 1}` : "";
   const isNumeric = /^\d+$/.test(sellerIdOrNick);
@@ -365,276 +272,215 @@ function buildStoreUrl(sellerIdOrNick: string, query: string, offset: number): s
 }
 
 async function scrapeStorePage(
-  nickname: string,
-  query: string = "ASX",
-  offset: number = 0
+  sellerKey: string,
+  query = "ASX",
+  offset = 0
 ): Promise<ScrapedProduct[]> {
-  const url = buildStoreUrl(nickname, query, offset);
-
+  const url = buildStoreUrl(sellerKey, query, offset);
   const html = await fetchHtml(url);
   if (!html) return [];
 
-  // Detectar bloqueio do ML (HTML sem cards de produto)
-  if (!html.includes('ui-search-layout__item') && !html.includes('poly-component__title')) {
-    console.warn(`[ML] Bloqueio detectado para ${nickname}. HTML sem resultados.`);
-    return [];
-  }
-
   const $ = cheerio.load(html);
-  const scrapedProducts: ScrapedProduct[] = [];
+  const items: ScrapedProduct[] = [];
 
   $("li.ui-search-layout__item").each((_, card) => {
     const $card = $(card);
-
-    // Title
     const title =
       $card.find(".poly-component__title").text().trim() ||
       $card.find(".ui-search-item__title").text().trim();
     if (!title) return;
 
-    // Price
-    const priceEl = $card.find(".poly-price__current").first();
-    const priceText = priceEl.text().trim();
+    const priceText = $card.find(".poly-price__current").first().text().trim();
     const priceMatch = priceText.replace(/\./g, "").match(/[\d,]+/);
     if (!priceMatch) return;
     const price = parseFloat(priceMatch[0].replace(",", "."));
     if (!price || isNaN(price)) return;
 
-    // URL and MLB ID
     const href = $card.find("a[href]").first().attr("href") || "";
     const mlbMatch = href.match(/(MLB\d+)/);
     const mlbId = mlbMatch ? mlbMatch[1] : "";
+    if (!mlbId) return;
 
-    // Thumbnail
     const thumbnail =
       $card.find("img").first().attr("src") ||
       $card.find("img").first().attr("data-src") ||
       "";
 
-    scrapedProducts.push({
-      mlbId,
-      title,
-      price,
-      url: href.split("#")[0],
-      thumbnail,
-      sellerNickname: nickname,
-    });
+    items.push({ mlbId, title, price, url: href.split("#")[0], thumbnail, sellerNickname: sellerKey });
   });
 
-  return scrapedProducts;
+  return items;
 }
 
-// -- Scraper Principal --
+// ─── Scraper Principal ────────────────────────────────────────────────────────
 export async function runScraper(
   options: ScrapeOptions = {}
 ): Promise<{ runId: number; found: number; violations: number }> {
-  if (scraperInProgress) {
-    throw new Error("Monitoramento já em execução.");
-  }
+
+  if (scraperInProgress) throw new Error("Monitoramento já em execução.");
   scraperInProgress = true;
 
   try {
     const db = await getDb();
-    if (!db) throw new Error("Banco de dados nao disponivel");
+    if (!db) throw new Error("Banco de dados não disponível");
 
     const triggeredBy = options.triggeredBy ?? "scheduled";
-    console.log(
-      `[Scraper v3] Iniciando... triggeredBy=${triggeredBy}, clienteId=${options.clienteId ?? "todos"}`
-    );
+    console.log(`[Scraper v4] Iniciando... triggeredBy=${triggeredBy}, clienteId=${options.clienteId ?? "todos"}`);
 
-    // Criar registro de execucao
+    // ── CRIAR REGISTRO DE EXECUÇÃO (PostgreSQL: .returning()) ──
     const runInsert = await db
       .insert(monitoringRuns)
       .values({
         status: "running",
-        triggeredBy: triggeredBy,
+        triggeredBy,
         clienteId: options.clienteId ?? null,
         plataforma: "mercadolivre",
       })
       .$returningId();
+
     const runId = Number((runInsert as any)?.[0]?.id);
-    if (!Number.isFinite(runId) || runId <= 0) {
-      throw new Error("Falha ao criar registro da execução (monitoring_runs)");
-    }
+    if (!Number.isFinite(runId) || runId <= 0) throw new Error("Falha ao criar registro da execução");
+
+    console.log(`[Scraper v4] runId=${runId}`);
 
     let totalFound = 0;
     let totalViolations = 0;
     const seenItemIds = new Set<string>();
-    const dbErrors: string[] = [];
 
     try {
-    // Carregar catalogo ativo
-    const catalog = await db
-      .select({
-        id: products.id,
-        codigo: products.codigo,
-        descricao: products.descricao,
-        ean: products.ean,
-        precoMinimo: products.precoMinimo,
-      })
-      .from(products)
-      .where(eq(products.ativo, true));
+      // ── Carregar catálogo ──
+      const catalog = await db
+        .select({
+          id: products.id,
+          codigo: products.codigo,
+          descricao: products.descricao,
+          ean: products.ean,
+          precoMinimo: products.precoMinimo,
+        })
+        .from(products)
+        .where(eq(products.ativo, true));
 
-    if (catalog.length === 0) throw new Error("Catalogo vazio");
+      if (catalog.length === 0) throw new Error("Catálogo vazio");
+      console.log(`[Scraper v4] Catálogo: ${catalog.length} produtos ativos`);
 
-    // Settings (via app_settings)
-    const minKeywordMatchesSetting = Number.parseInt(
-      (await getSetting("ml_keywords_min_match")) ?? "0",
-      10
-    );
-    const minKeywordMatches = Number.isFinite(minKeywordMatchesSetting)
-      ? Math.max(0, Math.min(10, minKeywordMatchesSetting))
-      : 0;
+      // ── Ler settings do banco ──
+      const minKwRaw = await getSetting("ml_keywords_min_match");
+      const minKw = Math.max(0, parseInt(minKwRaw ?? "0", 10) || 0);
 
-    const mlSearchLimitSetting = Number.parseInt(
-      (await getSetting("ml_search_limit")) ?? "50",
-      10
-    );
-    const mlSearchLimit = Number.isFinite(mlSearchLimitSetting)
-      ? Math.max(1, Math.min(500, mlSearchLimitSetting))
-      : 50;
+      // ── Carregar clientes ──
+      const clientesList = options.clienteId
+        ? await db.select().from(clientes).where(and(eq(clientes.id, options.clienteId), eq(clientes.status, "ativo")))
+        : await db.select().from(clientes).where(eq(clientes.status, "ativo"));
 
-    console.log(
-      `[Scraper v3] Settings: ml_keywords_min_match=${minKeywordMatches}, ml_search_limit=${mlSearchLimit}`
-    );
+      // ═══════════════════════════════════════════════════════
+      // FASE 1 — Busca cirúrgica por loja de cada cliente
+      // ═══════════════════════════════════════════════════════
+      for (const cliente of clientesList) {
+        const searchKey =
+          cliente.sellerId && /^\d+$/.test(cliente.sellerId)
+            ? cliente.sellerId
+            : cliente.lojaML;
 
-    // Carregar clientes ativos
-    const clientesList = options.clienteId
-      ? await db
-          .select()
-          .from(clientes)
-          .where(
-            and(
-              eq(clientes.id, options.clienteId),
-              eq(clientes.status, "ativo")
-            )
-          )
-      : await db.select().from(clientes).where(eq(clientes.status, "ativo"));
+        if (!searchKey) {
+          console.warn(`[Scraper v4] Cliente ${cliente.nome} sem sellerId/lojaML, pulando`);
+          continue;
+        }
 
-    // -- FASE 1: Busca cirurgica por loja do cliente --
-    for (const cliente of clientesList) {
-      const searchKey = cliente.sellerId && /^\d+$/.test(cliente.sellerId)
-        ? cliente.sellerId
-        : cliente.lojaML;
+        console.log(`[Scraper v4] Fase1: ${cliente.nome} (key=${searchKey})`);
+        let clienteFound = 0;
+        let clienteViolations = 0;
 
-      if (!searchKey) {
-        console.warn(`[Scraper v3] Cliente ${cliente.nome} sem seller_id nem loja_ml, pulando`);
-        continue;
-      }
+        for (let offset = 0; offset < 300; offset += 48) {
+          const pageItems = await scrapeStorePage(searchKey, "ASX", offset);
+          if (pageItems.length === 0) break;
 
-      console.log(
-        `[Scraper v3] Buscando anuncios de ${cliente.nome} (searchKey: ${searchKey})`
-      );
-      let clienteFound = 0;
-      let clienteViolations = 0;
+          for (const item of pageItems) {
+            if (!item.mlbId || seenItemIds.has(item.mlbId)) continue;
+            seenItemIds.add(item.mlbId);
 
-      // Paginar resultados da loja (48 por pagina)
-      for (let offset = 0; offset < 300; offset += 48) {
-        const items = await scrapeStorePage(searchKey, "ASX", offset);
-        if (items.length === 0) break;
+            const match = matchProduct(item.title, catalog);
+            if (!match || match.confianca < 50) continue;
+            if (minKw > 0) {
+              // conta sinais detectados
+              const signals = [
+                PRODUCT_LINES.some((l) => item.title.toUpperCase().includes(l)),
+                CONNECTOR_PATTERNS.some((c) => new RegExp(`\\b${c}\\b`).test(item.title.toUpperCase())),
+                !!extractWattage(item.title),
+                !!extractLumens(item.title),
+              ].filter(Boolean).length;
+              if (signals < minKw) continue;
+            }
 
-        for (const item of items) {
-          if (!item.mlbId) continue;
-          if (seenItemIds.has(item.mlbId)) continue;
-          seenItemIds.add(item.mlbId);
+            clienteFound++;
+            totalFound++;
+            const isViolation = item.price < match.precoMinimo;
+            if (isViolation) { clienteViolations++; totalViolations++; }
 
-          const matchResult = matchProduct(item.title, catalog, {
-            minKeywordMatches,
-          });
-          if (!matchResult || matchResult.confianca < 50) continue;
+            // Salvar snapshot
+            await db.insert(priceSnapshots).values({
+              runId,
+              productId: match.productId,
+              sellerName: cliente.nome,
+              sellerId: cliente.sellerId ?? String(cliente.id),
+              clienteId: cliente.id,
+              mlItemId: item.mlbId,
+              mlTitle: item.title,
+              mlUrl: item.url,
+              mlThumbnail: item.thumbnail,
+              plataforma: "mercadolivre",
+              precoAnunciado: String(item.price),
+              precoMinimo: String(match.precoMinimo),
+              isViolation,
+              validationReason: isViolation
+                ? `Preço R$${item.price.toFixed(2)} abaixo do mínimo R$${match.precoMinimo.toFixed(2)}`
+                : "OK",
+              confianca: match.confianca,
+              metodoMatch: match.metodoMatch,
+            }).catch((e: any) => console.error("[DB] snapshot:", e.message));
 
-          clienteFound++;
-          totalFound++;
-          const isViolation = item.price < matchResult.precoMinimo;
-          if (isViolation) {
-            clienteViolations++;
-            totalViolations++;
-          }
-
-          // Salvar snapshot
-          let snapshotId = 0;
-          try {
-            const snapInsert = await db
-              .insert(priceSnapshots)
-              .values({
-                runId: runId,
-                productId: matchResult.productId,
+            // Salvar violação
+            if (isViolation) {
+              const diferenca = match.precoMinimo - item.price;
+              const percentAbaixo = (diferenca / match.precoMinimo) * 100;
+              await db.insert(violations).values({
+                snapshotId: 0,
+                runId,
+                productId: match.productId,
                 sellerName: cliente.nome,
                 sellerId: cliente.sellerId ?? String(cliente.id),
                 clienteId: cliente.id,
                 mlItemId: item.mlbId,
-                mlTitle: item.title,
                 mlUrl: item.url,
                 mlThumbnail: item.thumbnail,
+                mlTitle: item.title,
+                plataforma: "mercadolivre",
                 precoAnunciado: String(item.price),
-                precoMinimo: String(matchResult.precoMinimo),
-                isViolation: isViolation,
-                confianca: matchResult.confianca,
-                metodoMatch: matchResult.metodoMatch,
-                plataforma: "mercadolivre",
-              }).$returningId();
-            snapshotId = snapInsert[0]?.id ?? 0;
-          } catch (e: any) {
-            dbErrors.push(`snapshot: ${e.message}`);
-            console.error("[DB] Erro ao salvar snapshot:", e.message);
-          }
-
-          // Salvar violacao
-          if (isViolation) {
-            const diferenca = matchResult.precoMinimo - item.price;
-            const percentAbaixo = (diferenca / matchResult.precoMinimo) * 100;
-            try {
-              await db
-                .insert(violations)
-                .values({
-                  snapshotId: snapshotId,
-                  runId: runId,
-                  productId: matchResult.productId,
-                  clienteId: cliente.id,
-                  sellerName: cliente.nome,
-                  sellerId: cliente.sellerId ?? String(cliente.id),
-                  mlItemId: item.mlbId,
-                  mlUrl: item.url,
-                  mlThumbnail: item.thumbnail,
-                  mlTitle: item.title,
-                  precoAnunciado: String(item.price),
-                  precoMinimo: String(matchResult.precoMinimo),
-                  diferenca: String(diferenca.toFixed(2)),
-                  percentAbaixo: String(percentAbaixo.toFixed(2)),
-                  confianca: matchResult.confianca,
-                  metodoMatch: matchResult.metodoMatch,
-                  plataforma: "mercadolivre",
-                  status: "open",
-                });
-            } catch (e: any) {
-              dbErrors.push(`violation: ${e.message}`);
-              console.error("[DB] Erro ao salvar violacao:", e.message);
+                precoMinimo: String(match.precoMinimo),
+                diferenca: String(diferenca.toFixed(2)),
+                percentAbaixo: String(percentAbaixo.toFixed(2)),
+                confianca: match.confianca,
+                metodoMatch: match.metodoMatch,
+                status: "open",
+              }).catch((e: any) => console.error("[DB] violation:", e.message));
             }
-          }
 
-          // Historico de precos (snake_case columns)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          try {
-            await db
-              .insert(historicoPrecosTable)
-              .values({
-                codigoAsx: matchResult.codigo,
-                plataforma: "mercadolivre",
-                vendedor: cliente.nome,
-                itemId: item.mlbId,
-                preco: String(item.price),
-                dataCaptura: today.toISOString().split("T")[0],
-              });
-          } catch (e: any) {
-            if (!e.message?.includes("duplicate") && !e.message?.includes("unique")) {
-              dbErrors.push(`historico: ${e.message}`);
-              console.error("[DB] Erro ao salvar historico:", e.message);
-            }
-          }
+            // Histórico de preços — PostgreSQL ON CONFLICT
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            await db.insert(historicoPrecosTable).values({
+              codigoAsx: match.codigo,
+              plataforma: "mercadolivre",
+              vendedor: cliente.nome,
+              itemId: item.mlbId,
+              preco: String(item.price),
+              dataCaptura: today.toISOString().split("T")[0],
+            }).catch((e: any) => {
+              if (!e.message?.includes("duplicate") && !e.message?.includes("unique")) {
+                console.error("[DB] historico:", e.message);
+              }
+            });
 
-          // Ranking de vendedores (raw SQL - snake_case columns)
-          try {
+            // Ranking de vendedores — PostgreSQL ON CONFLICT
             await db.execute(
               sql`INSERT INTO vendedores (plataforma, vendedorId, nome, clienteId, totalViolacoes, totalAnuncios)
                   VALUES ('mercadolivre', ${cliente.sellerId ?? String(cliente.id)}, ${cliente.nome}, ${cliente.id}, ${isViolation ? 1 : 0}, 1)
@@ -642,422 +488,201 @@ export async function runScraper(
                     totalAnuncios = totalAnuncios + 1,
                     totalViolacoes = totalViolacoes + ${isViolation ? 1 : 0},
                     ultimaVez = NOW()`
-            );
-          } catch (e: any) {
-            dbErrors.push(`vendedor: ${e.message}`);
-            console.error("[DB] Erro ao salvar vendedor:", e.message);
+            ).catch(() => {});
           }
+
+          if (pageItems.length < 48) break;
         }
 
-        if (items.length < 48) break;
-      }
-
-      // Atualizar totais do cliente
-      await db
-        .update(clientes)
-        .set({
+        // Atualizar totais do cliente
+        await db.update(clientes).set({
           totalProdutos: clienteFound,
           totalViolacoes: clienteViolations,
           ultimaVerificacao: new Date(),
-        })
-        .where(eq(clientes.id, cliente.id));
+        }).where(eq(clientes.id, cliente.id));
 
-      console.log(
-        `[Scraper v3] ${cliente.nome}: ${clienteFound} produtos, ${clienteViolations} violacoes`
-      );
-    }
-
-    // -- FASE 2: Busca geral por codigo ASX (vendedores nao cadastrados) --
-    if (!options.clienteId) {
-      console.log("[Scraper v3] Fase 2: busca geral por codigo ASX...");
-      const topProducts = catalog.slice(0, 15);
-
-      // Mapa de sellerId → nome do cliente para lookup reverso
-      const sellerIdToNome = new Map<string, string>();
-      for (const c of clientesList) {
-        if (c.sellerId) sellerIdToNome.set(c.sellerId, c.nome);
-        if (c.lojaML) sellerIdToNome.set(c.lojaML.toLowerCase(), c.nome);
+        console.log(`[Scraper v4] ${cliente.nome}: ${clienteFound} produtos, ${clienteViolations} violações`);
       }
 
-      for (const prod of topProducts) {
-        const query = prod.codigo;
-        const url = `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}_NoIndex_True`;
-        const html = await fetchHtml(url);
-        if (!html) continue;
+      // ═══════════════════════════════════════════════════════
+      // FASE 2 — Busca geral por código ASX (vendedores não cadastrados)
+      // ═══════════════════════════════════════════════════════
+      if (!options.clienteId) {
+        console.log("[Scraper v4] Fase2: busca geral por código ASX...");
+        const topProducts = catalog.slice(0, 15);
 
-        // Detectar bloqueio do ML
-        if (!html.includes('ui-search-layout__item') && !html.includes('poly-component__title')) {
-          console.warn(`[Scraper v3] Fase 2: ML bloqueou requisicao para "${query}". Aguardando 30s...`);
-          await sleep(30000);
-          continue;
-        }
+        for (const prod of topProducts) {
+          const url = `https://lista.mercadolivre.com.br/${encodeURIComponent(prod.codigo)}_NoIndex_True`;
+          const html = await fetchHtml(url);
+          if (!html) continue;
 
-        const $ = cheerio.load(html);
-        const fase2Items: Array<{title: string; price: number; mlbId: string; href: string; sellerEl: string; sellerLink: string; thumbnail: string}> = [];
+          const $ = cheerio.load(html);
+          const fase2Items: Array<{ title: string; price: number; mlbId: string; href: string; sellerEl: string; thumbnail: string }> = [];
 
-        $('li.ui-search-layout__item').each((_: number, card: any) => {
-          if (fase2Items.length >= mlSearchLimit) return false;
-          const $card = $(card);
-          const title =
-            $card.find(".poly-component__title").text().trim() ||
-            $card.find(".ui-search-item__title").text().trim();
-          if (!title) return;
+          $("li.ui-search-layout__item").each((_: number, card: any) => {
+            const $card = $(card);
+            const title =
+              $card.find(".poly-component__title").text().trim() ||
+              $card.find(".ui-search-item__title").text().trim();
+            if (!title) return;
 
-          const priceEl = $card.find(".poly-price__current").first();
-          const priceText = priceEl.text().trim();
-          const priceMatchResult = priceText.replace(/\./g, "").match(/[\d,]+/);
-          if (!priceMatchResult) return;
-          const price = parseFloat(priceMatchResult[0].replace(",", "."));
-          if (!price || isNaN(price)) return;
+            const priceText = $card.find(".poly-price__current").first().text().trim();
+            const priceMatch = priceText.replace(/\./g, "").match(/[\d,]+/);
+            if (!priceMatch) return;
+            const price = parseFloat(priceMatch[0].replace(",", "."));
+            if (!price || isNaN(price)) return;
 
-          const href = $card.find("a[href]").first().attr("href") || "";
-          const mlbMatch = href.match(/(MLB\d+)/);
-          const mlbId = mlbMatch ? mlbMatch[1] : "";
-          if (!mlbId) return;
-          if (seenItemIds.has(mlbId)) return;
-          seenItemIds.add(mlbId);
+            const href = $card.find("a[href]").first().attr("href") || "";
+            const mlbMatch = href.match(/(MLB\d+)/);
+            const mlbId = mlbMatch ? mlbMatch[1] : "";
+            if (!mlbId || seenItemIds.has(mlbId)) return;
+            seenItemIds.add(mlbId);
 
-          // Extrair nome do vendedor de múltiplos seletores
-          const sellerEl =
-            $card.find(".poly-component__seller").text().trim() ||
-            $card.find(".ui-search-official-store-label").text().trim() ||
-            $card.find(".ui-search-item__store-label").text().trim() ||
-            "";
+            const sellerEl = $card.find(".poly-component__seller").text().trim();
+            const thumbnail =
+              $card.find("img").first().attr("src") ||
+              $card.find("img").first().attr("data-src") ||
+              "";
 
-          // Extrair link da loja para identificar o vendedor
-          const sellerLink =
-            $card.find("a[href*='_Loja_']").attr("href") ||
-            $card.find("a[href*='loja/']").attr("href") ||
-            "";
-
-          const thumbnail =
-            $card.find("img").first().attr("src") ||
-            $card.find("img").first().attr("data-src") ||
-            "";
-
-          fase2Items.push({ title, price, mlbId, href, sellerEl, sellerLink, thumbnail });
-        });
-
-        for (const item of fase2Items) {
-          const matchResult = matchProduct(item.title, catalog, {
-            minKeywordMatches,
+            fase2Items.push({ title, price, mlbId, href, sellerEl, thumbnail });
           });
-          if (!matchResult || matchResult.confianca < 70) continue;
 
-          totalFound++;
-          const isViolation = item.price < matchResult.precoMinimo;
-          if (isViolation) totalViolations++;
+          for (const item of fase2Items) {
+            const match = matchProduct(item.title, catalog);
+            if (!match || match.confianca < 70) continue;
 
-          // Resolver nome do vendedor: seletor HTML → link da loja → lookup reverso → fallback
-          let resolvedSellerName = item.sellerEl;
-          if (!resolvedSellerName && item.sellerLink) {
-            const lojaMatch = item.sellerLink.match(/_Loja_([^_&?]+)/i) ||
-                              item.sellerLink.match(/\/loja\/([^/?&]+)/i);
-            if (lojaMatch) {
-              const lojaKey = lojaMatch[1].toLowerCase();
-              resolvedSellerName = sellerIdToNome.get(lojaKey) || lojaMatch[1];
-            }
-          }
-          // Lookup reverso pelo MLB ID (se for cliente cadastrado)
-          if (!resolvedSellerName) {
-            resolvedSellerName = sellerIdToNome.get(item.mlbId) || "Vendedor Nao Cadastrado";
-          }
+            totalFound++;
+            const isViolation = item.price < match.precoMinimo;
+            if (isViolation) totalViolations++;
 
-          let snapshotId = 0;
-          try {
-            const snap2Insert = await db.insert(priceSnapshots)
-              .values({
-                runId: runId,
-                productId: matchResult.productId,
-                sellerName: resolvedSellerName,
-                sellerId: item.mlbId,
+            await db.insert(priceSnapshots).values({
+              runId,
+              productId: match.productId,
+              sellerName: item.sellerEl || "Vendedor Desconhecido",
+              sellerId: null,
+              clienteId: null,
+              mlItemId: item.mlbId,
+              mlTitle: item.title,
+              mlUrl: item.href.split("#")[0],
+              mlThumbnail: item.thumbnail,
+              plataforma: "mercadolivre",
+              precoAnunciado: String(item.price),
+              precoMinimo: String(match.precoMinimo),
+              isViolation,
+              validationReason: isViolation
+                ? `Vendedor não cadastrado — R$${item.price.toFixed(2)} abaixo do mínimo R$${match.precoMinimo.toFixed(2)}`
+                : "OK",
+              confianca: match.confianca,
+              metodoMatch: match.metodoMatch,
+            }).catch(() => {});
+
+            if (isViolation) {
+              const diferenca = match.precoMinimo - item.price;
+              const percentAbaixo = (diferenca / match.precoMinimo) * 100;
+              await db.insert(violations).values({
+                snapshotId: 0,
+                runId,
+                productId: match.productId,
+                sellerName: item.sellerEl || "Vendedor Desconhecido",
+                sellerId: null,
                 clienteId: null,
                 mlItemId: item.mlbId,
-                mlTitle: item.title,
                 mlUrl: item.href.split("#")[0],
                 mlThumbnail: item.thumbnail,
-                precoAnunciado: String(item.price),
-                precoMinimo: String(matchResult.precoMinimo),
-                isViolation: isViolation,
-                confianca: matchResult.confianca,
-                metodoMatch: matchResult.metodoMatch,
+                mlTitle: item.title,
                 plataforma: "mercadolivre",
-              }).$returningId();
-            snapshotId = snap2Insert[0]?.id ?? 0;
-          } catch (e: any) {
-            dbErrors.push(`fase2_snapshot: ${e.message}`);
-            console.error("[DB] Fase 2 - Erro snapshot:", e.message);
-          }
-
-          if (isViolation) {
-            const diferenca = matchResult.precoMinimo - item.price;
-            const percentAbaixo = (diferenca / matchResult.precoMinimo) * 100;
-            try {
-              await db.insert(violations)
-                .values({
-                  snapshotId: snapshotId,
-                  runId: runId,
-                  productId: matchResult.productId,
-                  sellerName: resolvedSellerName,
-                  sellerId: item.mlbId,
-                  mlItemId: item.mlbId,
-                  mlUrl: item.href.split("#")[0],
-                  mlThumbnail: item.thumbnail,
-                  mlTitle: item.title,
-                  precoAnunciado: String(item.price),
-                  precoMinimo: String(matchResult.precoMinimo),
-                  diferenca: String(diferenca.toFixed(2)),
-                  percentAbaixo: String(percentAbaixo.toFixed(2)),
-                  confianca: matchResult.confianca,
-                  metodoMatch: matchResult.metodoMatch,
-                  plataforma: "mercadolivre",
-                  status: "open",
-                });
-            } catch (e: any) {
-              dbErrors.push(`fase2_violation: ${e.message}`);
-              console.error("[DB] Fase 2 - Erro violacao:", e.message);
+                precoAnunciado: String(item.price),
+                precoMinimo: String(match.precoMinimo),
+                diferenca: String(diferenca.toFixed(2)),
+                percentAbaixo: String(percentAbaixo.toFixed(2)),
+                confianca: match.confianca,
+                metodoMatch: match.metodoMatch,
+                status: "open",
+              }).catch(() => {});
             }
           }
         }
       }
-    }
 
-    // Finalizar execucao
-    await db
-      .update(monitoringRuns)
-      .set({
-        status: "completed" as const,
+      // ── Finalizar execução — colunas corretas do Supabase ──
+      await db.update(monitoringRuns).set({
+        status: "completed",
         finishedAt: new Date(),
-        productsFound: totalFound,
-        totalViolations: totalViolations,
-        errorMessage: dbErrors.length > 0
-          ? `${dbErrors.length} erros de DB: ${dbErrors.slice(0, 5).join("; ")}`
-          : null,
-      })
-      .where(eq(monitoringRuns.id, runId));
+        totalFound,        // ← nome correto no Supabase
+        totalViolations,   // ← nome correto no Supabase
+      }).where(eq(monitoringRuns.id, runId));
 
-    console.log(
-      `[Scraper v3] Concluido. Encontrados: ${totalFound}, Violacoes: ${totalViolations}, Erros DB: ${dbErrors.length}`
-    );
+      console.log(`[Scraper v4] Concluído. Encontrados: ${totalFound}, Violações: ${totalViolations}`);
 
-    if (totalViolations > 0) {
-      await notifyOwner({
-        title: `ASX Monitor: ${totalViolations} violacao(oes) detectada(s)`,
-        content: `Monitoramento concluido. ${totalFound} anuncios encontrados, ${totalViolations} violacoes de preco minimo detectadas.`,
-      }).catch(() => {});
-    }
+      if (totalViolations > 0) {
+        await notifyOwner({
+          title: `⚠️ ASX Monitor: ${totalViolations} violação(ões) detectada(s)`,
+          content: `Monitoramento concluído. ${totalFound} anúncios verificados, ${totalViolations} violações de preço mínimo.`,
+        }).catch(() => {});
+      }
 
       return { runId, found: totalFound, violations: totalViolations };
+
     } catch (err: any) {
-      console.error("[Scraper v3] Erro fatal:", err.message);
-      if (runId) {
-        await db
-          .update(monitoringRuns)
-          .set({
-            status: "failed" as const,
-            finishedAt: new Date(),
-            errorMessage: err.message,
-          })
-          .where(eq(monitoringRuns.id, runId));
-      }
+      console.error("[Scraper v4] Erro fatal:", err.message);
+      await db.update(monitoringRuns).set({
+        status: "failed",
+        finishedAt: new Date(),
+        errorMessage: err.message,
+      }).where(eq(monitoringRuns.id, runId)).catch(() => {});
       throw err;
     }
+
   } finally {
     scraperInProgress = false;
   }
 }
 
-// -- Compatibilidade com codigo legado --
-export async function runMonitoring(
-  triggeredBy: "scheduled" | "manual" = "scheduled"
-) {
+// ─── Compatibilidade legado ───────────────────────────────────────────────────
+export async function runMonitoring(triggeredBy: "scheduled" | "manual" = "scheduled") {
   const result = await runScraper({ triggeredBy });
-  return {
-    success: true,
-    productsFound: result.found,
-    violationsFound: result.violations,
-    runId: result.runId,
-  };
+  return { success: true, productsFound: result.found, violationsFound: result.violations, runId: result.runId };
 }
 
-// -- Agendador (cron diario as 14h) --
+// ─── Agendador ────────────────────────────────────────────────────────────────
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function startScheduler() {
-  // Evita timers duplicados quando startScheduler é chamado mais de uma vez
   stopScheduler();
   void scheduleNext();
 }
 
-async function loadSchedulerConfig(): Promise<{ active: boolean; hour: number }> {
-  // Sem banco não tem como ler settings => não agenda.
+async function scheduleNext() {
   const db = await getDb();
   if (!db) {
-    console.warn(
-      "[Scheduler v3] Banco de dados indisponível. Agendador não será iniciado."
-    );
-    return { active: false, hour: 14 };
-  }
-
-  const [ativoRaw, horaRaw] = await Promise.all([
-    getSetting("scraper_ativo"),
-    getSetting("scraper_hora"),
-  ]);
-
-  const active = (ativoRaw ?? "true").toLowerCase() === "true";
-  const parsedHour = Number.parseInt(horaRaw ?? "14", 10);
-  const hour = Number.isFinite(parsedHour)
-    ? Math.min(23, Math.max(0, parsedHour))
-    : 14;
-
-  return { active, hour };
-}
-
-function getOffsetMinutes(date: Date, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    timeZoneName: "shortOffset",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const tzName =
-    dtf.formatToParts(date).find((p) => p.type === "timeZoneName")?.value ??
-    "";
-  const m = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
-  if (!m) return 0;
-  const sign = m[1] === "-" ? -1 : 1;
-  const hh = Number.parseInt(m[2], 10);
-  const mm = m[3] ? Number.parseInt(m[3], 10) : 0;
-  return sign * (hh * 60 + mm);
-}
-
-function getZonedParts(date: Date, timeZone: string) {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = dtf.formatToParts(date);
-  const map = Object.fromEntries(
-    parts
-      .filter((p) => p.type !== "literal")
-      .map((p) => [p.type, p.value])
-  ) as Record<string, string>;
-  return {
-    year: Number.parseInt(map.year, 10),
-    month: Number.parseInt(map.month, 10),
-    day: Number.parseInt(map.day, 10),
-    hour: Number.parseInt(map.hour, 10),
-    minute: Number.parseInt(map.minute, 10),
-    second: Number.parseInt(map.second, 10),
-  };
-}
-
-function zonedDateTimeToUtcMs(opts: {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-  timeZone: string;
-}) {
-  const baseUtc = Date.UTC(
-    opts.year,
-    opts.month - 1,
-    opts.day,
-    opts.hour,
-    opts.minute,
-    opts.second,
-    0
-  );
-
-  // Ajuste de offset (pode variar com DST). Fazemos algumas iterações para estabilizar.
-  let utc = baseUtc;
-  for (let i = 0; i < 3; i++) {
-    const offsetMinutes = getOffsetMinutes(new Date(utc), opts.timeZone);
-    const corrected = baseUtc - offsetMinutes * 60_000;
-    if (corrected === utc) break;
-    utc = corrected;
-  }
-  return utc;
-}
-
-function computeNextRun(hour: number, timeZone: string) {
-  const now = new Date();
-  const zonedNow = getZonedParts(now, timeZone);
-
-  // Candidato: hoje (no timezone alvo), às HH:00
-  let candidateUtcMs = zonedDateTimeToUtcMs({
-    year: zonedNow.year,
-    month: zonedNow.month,
-    day: zonedNow.day,
-    hour,
-    minute: 0,
-    second: 0,
-    timeZone,
-  });
-
-  if (candidateUtcMs <= now.getTime()) {
-    // Próximo dia (no calendário do timezone alvo)
-    const nextDayUtc =
-      Date.UTC(zonedNow.year, zonedNow.month - 1, zonedNow.day) + 86_400_000;
-    const nextDay = new Date(nextDayUtc);
-    candidateUtcMs = zonedDateTimeToUtcMs({
-      year: nextDay.getUTCFullYear(),
-      month: nextDay.getUTCMonth() + 1,
-      day: nextDay.getUTCDate(),
-      hour,
-      minute: 0,
-      second: 0,
-      timeZone,
-    });
-  }
-
-  return {
-    next: new Date(candidateUtcMs),
-    delayMs: candidateUtcMs - now.getTime(),
-  };
-}
-
-async function scheduleNext() {
-  const config = await loadSchedulerConfig();
-
-  const timeZone =
-    process.env.SCRAPER_TIMEZONE ||
-    process.env.APP_TIMEZONE ||
-    process.env.TZ ||
-    "America/Bahia";
-
-  if (!config.active) {
-    console.log(
-      "[Scheduler v3] Agendador desativado (scraper_ativo=false ou banco indisponível). Nenhuma execução será agendada."
-    );
-    schedulerTimer = null;
+    console.warn("[Scheduler v4] Banco indisponível, agendador não iniciado.");
     return;
   }
 
-  const { next, delayMs } = computeNextRun(config.hour, timeZone);
-  const nextLocal = new Intl.DateTimeFormat("pt-BR", {
-    timeZone,
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(next);
-  console.log(
-    `[Scheduler v3] Agendador ativo (${timeZone}) - execução diária às ${String(config.hour).padStart(2, "0")}:00. Próxima em ${Math.round(delayMs / 60000)} minutos (${nextLocal})`
-  );
+  const ativoRaw = await getSetting("scraper_ativo");
+  const horaRaw  = await getSetting("scraper_hora");
+  const ativo = (ativoRaw ?? "true").toLowerCase() === "true";
+  const hora  = Math.min(23, Math.max(0, parseInt(horaRaw ?? "14", 10) || 14));
+
+  if (!ativo) {
+    console.log("[Scheduler v4] Agendador desativado (scraper_ativo=false).");
+    return;
+  }
+
+  const now  = new Date();
+  const next = new Date();
+  // Brasília = UTC-3
+  next.setUTCHours(hora + 3, 0, 0, 0);
+  if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+
+  const delayMs = next.getTime() - now.getTime();
+  console.log(`[Scheduler v4] Próxima execução em ${Math.round(delayMs / 60000)} min (${next.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })})`);
 
   schedulerTimer = setTimeout(async () => {
     try {
       await runScraper({ triggeredBy: "scheduled" });
     } catch (err: any) {
-      console.error("[Scheduler v3] Erro na execução agendada:", err?.message ?? err);
+      console.error("[Scheduler v4] Erro na execução agendada:", err.message);
     } finally {
       void scheduleNext();
     }
@@ -1068,6 +693,5 @@ export function stopScheduler() {
   if (schedulerTimer) {
     clearTimeout(schedulerTimer);
     schedulerTimer = null;
-    console.log("[Scheduler v3] Agendador parado");
   }
 }
