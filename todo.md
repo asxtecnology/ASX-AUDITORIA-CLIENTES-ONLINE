@@ -194,3 +194,7 @@
 ## Correções Clientes.tsx (04/03/2026)
 - [x] Correção 1: Layout dos botões de ação no ClienteCard (grid grid-cols-3 gap-2)
 - [x] Correção 2: Função buildClienteStoreUrl — prioridade sellerId numérico (_CustId_) primeiro, ignorar URLs /perfil/
+
+## Campo linkLoja no formulário (04/03/2026)
+- [x] Adicionar campo "Link da Loja" ao ClienteForm (input linkLoja)
+- [x] Garantir que linkLoja seja enviado no handleSave e salvo pelo procedure upsert

@@ -184,6 +184,7 @@ function ClienteForm({ initial, onSave, onCancel }: {
     nome: initial?.nome ?? "",
     sellerId: initial?.sellerId ?? "",
     lojaML: initial?.lojaML ?? "",
+    linkLoja: initial?.linkLoja ?? "",
     status: initial?.status ?? "ativo",
   });
 
@@ -228,6 +229,18 @@ function ClienteForm({ initial, onSave, onCancel }: {
             onChange={(e) => setForm({ ...form, email: e.target.value } as any)}
           />
         </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-muted-foreground">Link da Loja (URL alternativa)</Label>
+        <Input
+          className="bg-accent border-border text-foreground"
+          placeholder="Ex: https://lista.mercadolivre.com.br/_CustId_12345"
+          value={form.linkLoja}
+          onChange={(e) => setForm({ ...form, linkLoja: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground">
+          Opcional. Use se o Seller ID numérico e o Nickname não funcionarem. Evite URLs com /perfil/ (retornam 404).
+        </p>
       </div>
       <div className="space-y-1.5">
         <Label className="text-muted-foreground">Status</Label>
@@ -306,8 +319,9 @@ export default function Clientes() {
     upsertMutation.mutate({
       id: data.id,
       nome: data.nome,
-      sellerId: data.sellerId || data.sellerId,
-      lojaML: data.lojaML || data.lojaML || undefined,
+      sellerId: data.sellerId,
+      lojaML: data.lojaML || undefined,
+      linkLoja: data.linkLoja || undefined,
       status: data.status,
     });
   };
