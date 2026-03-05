@@ -451,7 +451,7 @@ export async function runScraper(
         clienteId: options.clienteId ?? null,
         plataforma: "mercadolivre",
       })
-      .$returningId();
+      .returning({ id: monitoringRuns.id });
     const runId = Number((runInsert as any)?.[0]?.id);
     if (!Number.isFinite(runId) || runId <= 0) {
       throw new Error("Falha ao criar registro da execução (monitoring_runs)");
@@ -572,7 +572,7 @@ export async function runScraper(
                 confianca: matchResult.confianca,
                 metodoMatch: matchResult.metodoMatch,
                 plataforma: "mercadolivre",
-              }).$returningId();
+              }).returning({ id: priceSnapshots.id });
             snapshotId = snapInsert[0]?.id ?? 0;
           } catch (e: any) {
             dbErrors.push(`snapshot: ${e.message}`);
@@ -782,7 +782,7 @@ export async function runScraper(
                 confianca: matchResult.confianca,
                 metodoMatch: matchResult.metodoMatch,
                 plataforma: "mercadolivre",
-              }).$returningId();
+              }).returning({ id: priceSnapshots.id });
             snapshotId = snap2Insert[0]?.id ?? 0;
           } catch (e: any) {
             dbErrors.push(`fase2_snapshot: ${e.message}`);
