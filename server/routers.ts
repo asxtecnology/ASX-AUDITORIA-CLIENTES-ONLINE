@@ -24,6 +24,10 @@ import {
   upsertProduct,
   upsertSetting,
   getSnapshotsByProduct,
+  getMlCredentials,
+  saveMlCredentials,
+  updateMlTokens,
+  deleteMlCredentials,
   getClientes,
   getClienteById,
   upsertCliente,
@@ -320,6 +324,183 @@ const settingsRouter = router({
   init: protectedProcedure.mutation(() => initDefaultSettings()),
 });
 
+// Mercado Livre OAuth Router
+const mlRouter = router({
+  // Retorna as credenciais salvas (sem expor client_secret completo)
+  getCredentials: protectedProcedure.query(async () => {
+    const cred = await getMlCredentials();
+    if (!cred) return null;
+    return {
+      id: cred.id,
+      appId: cred.appId,
+      // Mascara o secret: mostra apenas os 4 primeiros e 4 últimos caracteres
+      clientSecretMasked: cred.clientSecret
+        ? cred.clientSecret.substring(0, 4) + "****" + cred.clientSecret.substring(cred.clientSecret.length - 4)
+        : null,
+      siteId: cred.siteId,
+      redirectUri: cred.redirectUri,
+      status: cred.status,
+      mlUserId: cred.mlUserId,
+      mlNickname: cred.mlNickname,
+      mlEmail: cred.mlEmail,
+      expiresAt: cred.expiresAt,
+      scope: cred.scope,
+      lastError: cred.lastError,
+      updatedAt: cred.updatedAt,
+    };
+  }),
+
+  // Salva App ID e Client Secret (configuração inicial)
+  saveCredentials: protectedProcedure
+    .input(
+      z.object({
+        appId: z.string().min(1, "App ID obrigatório"),
+        clientSecret: z.string().min(1, "Client Secret obrigatório"),
+        siteId: z.enum(["MLB", "MLA", "MLM", "MLE", "MLC", "MCO", "MPE", "MLU"]).default("MLB"),
+        redirectUri: z.string().url("URL de redirecionamento inválida").optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem configurar credenciais ML." });
+      }
+      await saveMlCredentials(input);
+      return { ok: true };
+    }),
+
+  // Gera a URL de autorização OAuth do ML para o usuário clicar
+  getAuthUrl: protectedProcedure
+    .input(z.object({ origin: z.string().url() }))
+    .query(async ({ input }) => {
+      const cred = await getMlCredentials();
+      if (!cred) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Configure o App ID e Client Secret primeiro." });
+      }
+      const redirectUri = cred.redirectUri || `${input.origin}/api/ml/callback`;
+      const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${cred.appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+      return { authUrl, redirectUri };
+    }),
+
+  // Troca o code pelo access_token (chamado após o callback OAuth)
+  exchangeCode: protectedProcedure
+    .input(z.object({ code: z.string(), redirectUri: z.string().url() }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem autorizar credenciais ML." });
+      }
+      const cred = await getMlCredentials();
+      if (!cred) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Configure o App ID e Client Secret primeiro." });
+      }
+      // Trocar code por token
+      const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: cred.appId,
+          client_secret: cred.clientSecret,
+          code: input.code,
+          redirect_uri: input.redirectUri,
+        }),
+      });
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        await updateMlTokens({ status: "error", lastError: errText });
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Erro ao trocar código: ${errText}` });
+      }
+      const tokenData = await tokenRes.json() as {
+        access_token: string;
+        token_type: string;
+        expires_in: number;
+        scope: string;
+        user_id: number;
+        refresh_token: string;
+      };
+      // Buscar dados do usuário ML
+      let mlNickname = "";
+      let mlEmail = "";
+      try {
+        const userRes = await fetch(`https://api.mercadolibre.com/users/${tokenData.user_id}`, {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
+        if (userRes.ok) {
+          const userData = await userRes.json() as { nickname: string; email: string };
+          mlNickname = userData.nickname || "";
+          mlEmail = userData.email || "";
+        }
+      } catch (_) { /* ignora erro ao buscar dados do usuário */ }
+
+      const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+      await updateMlTokens({
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        tokenType: tokenData.token_type,
+        expiresAt,
+        scope: tokenData.scope,
+        mlUserId: String(tokenData.user_id),
+        mlNickname,
+        mlEmail,
+        status: "authorized",
+        lastError: null,
+      });
+      return { ok: true, mlNickname, mlEmail, expiresAt };
+    }),
+
+  // Renova o access_token usando o refresh_token
+  refreshToken: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem renovar tokens ML." });
+    }
+    const cred = await getMlCredentials();
+    if (!cred?.refreshToken) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Nenhum refresh_token disponível. Autorize novamente." });
+    }
+    const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: cred.appId,
+        client_secret: cred.clientSecret,
+        refresh_token: cred.refreshToken,
+      }),
+    });
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      await updateMlTokens({ status: "error", lastError: errText });
+      throw new TRPCError({ code: "BAD_REQUEST", message: `Erro ao renovar token: ${errText}` });
+    }
+    const tokenData = await tokenRes.json() as {
+      access_token: string;
+      token_type: string;
+      expires_in: number;
+      scope: string;
+      refresh_token: string;
+    };
+    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+    await updateMlTokens({
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      tokenType: tokenData.token_type,
+      expiresAt,
+      scope: tokenData.scope,
+      status: "authorized",
+      lastError: null,
+    });
+    return { ok: true, expiresAt };
+  }),
+
+  // Remove as credenciais ML
+  deleteCredentials: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem remover credenciais ML." });
+    }
+    await deleteMlCredentials();
+    return { ok: true };
+  }),
+});
+
 // App Router
 export const appRouter = router({
   system: systemRouter,
@@ -338,6 +519,7 @@ export const appRouter = router({
   vendedores: vendedoresRouter,
   alerts: alertsRouter,
   settings: settingsRouter,
+  ml: mlRouter,
 });
 
 export type AppRouter = typeof appRouter;

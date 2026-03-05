@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { AlertTriangle, BarChart3, Bell, BookOpen, LayoutDashboard, LogOut, PanelLeft, Settings, ShieldAlert, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, BookOpen, LayoutDashboard, LogOut, PanelLeft, Settings, ShieldAlert, ShoppingBag, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -34,6 +34,7 @@ const menuItems = [
   { icon: BookOpen, label: "Catálogo", path: "/catalog" },
   { icon: BarChart3, label: "Histórico", path: "/history" },
   { icon: Bell, label: "Alertas", path: "/alerts" },
+  { icon: ShoppingBag, label: "Mercado Livre", path: "/ml" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 

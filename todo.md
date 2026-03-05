@@ -198,3 +198,19 @@
 ## Campo linkLoja no formulário (04/03/2026)
 - [x] Adicionar campo "Link da Loja" ao ClienteForm (input linkLoja)
 - [x] Garantir que linkLoja seja enviado no handleSave e salvo pelo procedure upsert
+
+## Integração API Oficial Mercado Livre (05/03/2026)
+- [x] Tabela ml_credentials criada no banco MySQL via SQL direto
+- [x] Funções CRUD no db.ts: getMlCredentials, saveMlCredentials, updateMlTokens, deleteMlCredentials
+- [x] Router tRPC ml: getCredentials, saveCredentials, getAuthUrl, exchangeCode, refreshToken, deleteCredentials
+- [x] Página MercadoLivre.tsx com interface OAuth completa (3 passos: App ID/Secret → Autorizar → Conectado)
+- [x] Item de navegação "Mercado Livre" adicionado na sidebar (ShoppingBag icon)
+- [x] Rota /ml adicionada no App.tsx
+- [x] mlScraper.ts: getMlAccessToken() com cache + auto-refresh
+- [x] mlScraper.ts: fetchSellerItemsViaApi() — busca todos anúncios do seller via API oficial
+- [x] mlScraper.ts: searchItemsViaApi() — busca por query via API oficial
+- [x] Fase 1 do scraper usa API oficial quando token válido, fallback HTML quando não
+- [x] 24/24 testes passando, 0 erros TypeScript
+- [ ] Configurar App ML no Mercado Livre Developers (usuário)
+- [ ] Inserir App ID e Client Secret na página /ml
+- [ ] Completar fluxo OAuth e testar busca via API oficial

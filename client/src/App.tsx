@@ -11,6 +11,7 @@ import Violations from "./pages/Violations";
 import Alerts from "./pages/Alerts";
 import Settings from "./pages/Settings";
 import Revendedores from "./pages/Clientes";
+import MercadoLivre from "./pages/MercadoLivre";
 import NotFound from "./pages/NotFound";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
         <Route path="/history" component={History} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/settings" component={Settings} />
+        <Route path="/ml" component={MercadoLivre} />
         <Route component={NotFound} />
       </Switch>
     </DashboardLayout>

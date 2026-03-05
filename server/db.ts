@@ -24,6 +24,9 @@ import {
   vendedores,
   historicoPrecosTable,
   InsertCliente,
+  mlCredentials,
+  MlCredential,
+  InsertMlCredential,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -459,4 +462,63 @@ export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?:
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.dataCaptura)).limit(500);
+}
+
+// ─── Mercado Livre OAuth Credentials ─────────────────────────────────────────────────────────────
+// Retorna as credenciais ML (sempre apenas 1 registro)
+export async function getMlCredentials(): Promise<MlCredential | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(mlCredentials).limit(1);
+  return rows[0] ?? null;
+}
+
+// Salva (upsert) App ID e Client Secret
+export async function saveMlCredentials(
+  data: Pick<InsertMlCredential, "appId" | "clientSecret" | "siteId" | "redirectUri">
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await getMlCredentials();
+  if (existing) {
+    await db.update(mlCredentials)
+      .set({
+        appId: data.appId,
+        clientSecret: data.clientSecret,
+        siteId: data.siteId ?? "MLB",
+        redirectUri: data.redirectUri ?? null,
+        status: "pending",
+        lastError: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(mlCredentials.id, existing.id));
+  } else {
+    await db.insert(mlCredentials).values({
+      appId: data.appId,
+      clientSecret: data.clientSecret,
+      siteId: data.siteId ?? "MLB",
+      redirectUri: data.redirectUri ?? null,
+      status: "pending",
+    });
+  }
+}
+
+// Atualiza os tokens OAuth após autorização
+export async function updateMlTokens(
+  data: Partial<Pick<MlCredential, "accessToken" | "refreshToken" | "tokenType" | "expiresAt" | "scope" | "mlUserId" | "mlNickname" | "mlEmail" | "status" | "lastError">>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await getMlCredentials();
+  if (!existing) return;
+  await db.update(mlCredentials)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(mlCredentials.id, existing.id));
+}
+
+// Remove as credenciais ML
+export async function deleteMlCredentials(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(mlCredentials);
 }

@@ -178,6 +178,33 @@ export const alertConfigs = mysqlTable("alert_configs", {
 export type AlertConfig = typeof alertConfigs.$inferSelect;
 export type InsertAlertConfig = typeof alertConfigs.$inferInsert;
 
+// ─── Mercado Livre OAuth Credentials ────────────────────────────────────────
+export const mlCredentials = mysqlTable("ml_credentials", {
+  id: serial("id").primaryKey(),
+  // Dados do App ML (obtidos em developers.mercadolivre.com.br)
+  appId: varchar("appId", { length: 64 }).notNull(),
+  clientSecret: varchar("clientSecret", { length: 128 }).notNull(),
+  siteId: varchar("siteId", { length: 8 }).default("MLB").notNull(), // MLB=Brasil, MLA=Argentina, MLM=México, MLE=Espanha
+  redirectUri: varchar("redirectUri", { length: 512 }),
+  // Tokens OAuth (preenchidos após autorização)
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  tokenType: varchar("tokenType", { length: 32 }).default("Bearer"),
+  expiresAt: datetime("expiresAt"), // quando o access_token expira
+  scope: text("scope"), // escopos autorizados
+  // Dados do usuário ML autenticado
+  mlUserId: varchar("mlUserId", { length: 64 }), // ID numérico do usuário ML
+  mlNickname: varchar("mlNickname", { length: 128 }), // nickname da conta ML
+  mlEmail: varchar("mlEmail", { length: 320 }), // email da conta ML
+  // Status
+  status: mysqlEnum("status", ["pending", "authorized", "expired", "error"]).default("pending").notNull(),
+  lastError: text("lastError"),
+  createdAt: datetime("createdAt").notNull().$defaultFn(() => new Date()),
+  updatedAt: datetime("updatedAt").notNull().$defaultFn(() => new Date()),
+});
+export type MlCredential = typeof mlCredentials.$inferSelect;
+export type InsertMlCredential = typeof mlCredentials.$inferInsert;
+
 // ─── App Settings ─────────────────────────────────────────────────────────────
 export const appSettings = mysqlTable("app_settings", {
   id: serial("id").primaryKey(),

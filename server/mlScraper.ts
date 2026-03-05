@@ -12,7 +12,7 @@
 
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { getDb, getSetting } from "./db";
+import { getDb, getSetting, getMlCredentials, updateMlTokens } from "./db";
 import {
   products,
   monitoringRuns,
@@ -30,6 +30,88 @@ const MAX_RETRIES = 3;
 
 // Lock global — evita execuções sobrepostas
 let scraperInProgress = false;
+
+// ─── API Oficial ML ───────────────────────────────────────────────────────────
+let _mlTokenCache: { accessToken: string; expiresAt: Date } | null = null;
+
+async function getMlAccessToken(): Promise<string | null> {
+  if (_mlTokenCache && _mlTokenCache.expiresAt > new Date(Date.now() + 60_000)) {
+    return _mlTokenCache.accessToken;
+  }
+  const cred = await getMlCredentials();
+  if (!cred || cred.status !== "authorized" || !cred.accessToken) return null;
+  if (cred.expiresAt && cred.expiresAt < new Date(Date.now() + 60_000)) {
+    if (!cred.refreshToken) return null;
+    try {
+      const res = await axios.post(
+        "https://api.mercadolibre.com/oauth/token",
+        new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: cred.appId,
+          client_secret: cred.clientSecret,
+          refresh_token: cred.refreshToken,
+        }),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+      const expiresAt = new Date(Date.now() + res.data.expires_in * 1000);
+      await updateMlTokens({ accessToken: res.data.access_token, refreshToken: res.data.refresh_token, expiresAt, status: "authorized", lastError: null });
+      _mlTokenCache = { accessToken: res.data.access_token, expiresAt };
+      return res.data.access_token;
+    } catch (e: unknown) {
+      await updateMlTokens({ status: "expired", lastError: e instanceof Error ? e.message : String(e) });
+      return null;
+    }
+  }
+  _mlTokenCache = { accessToken: cred.accessToken, expiresAt: cred.expiresAt ?? new Date(Date.now() + 3600_000) };
+  return cred.accessToken;
+}
+
+async function fetchSellerItemsViaApi(sellerId: string, siteId = "MLB"): Promise<ScrapedProduct[] | null> {
+  const token = await getMlAccessToken();
+  if (!token) return null;
+  const results: ScrapedProduct[] = [];
+  let offset = 0;
+  const limit = 50;
+  try {
+    while (true) {
+      const res = await axios.get(`https://api.mercadolibre.com/sites/${siteId}/search`, {
+        params: { seller_id: sellerId, limit, offset },
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15_000,
+      });
+      const items: Array<{ id: string; title: string; price: number; permalink: string; thumbnail: string; seller: { nickname: string } }> = res.data.results ?? [];
+      for (const item of items) {
+        results.push({ mlbId: item.id, title: item.title, price: item.price, url: item.permalink, thumbnail: item.thumbnail, sellerNickname: item.seller?.nickname ?? sellerId });
+      }
+      if (items.length < limit) break;
+      offset += limit;
+      if (offset >= 1000) break;
+      await sleep(500);
+    }
+    console.log(`[ML API] Seller ${sellerId}: ${results.length} anúncios via API oficial.`);
+    return results;
+  } catch (e: unknown) {
+    console.warn(`[ML API] Fallback scraping para seller ${sellerId}: ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
+}
+
+async function searchItemsViaApi(query: string, siteId = "MLB", limit = 50): Promise<ScrapedProduct[] | null> {
+  const token = await getMlAccessToken();
+  if (!token) return null;
+  try {
+    const res = await axios.get(`https://api.mercadolibre.com/sites/${siteId}/search`, {
+      params: { q: query, limit },
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15_000,
+    });
+    const items: Array<{ id: string; title: string; price: number; permalink: string; thumbnail: string; seller: { nickname: string } }> = res.data.results ?? [];
+    return items.map(item => ({ mlbId: item.id, title: item.title, price: item.price, url: item.permalink, thumbnail: item.thumbnail, sellerNickname: item.seller?.nickname ?? "desconhecido" }));
+  } catch (e: unknown) {
+    console.warn(`[ML API] Fallback scraping para query "${query}": ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
+}
 
 const SCRAPER_HEADERS = {
   "User-Agent":
@@ -390,6 +472,30 @@ export async function runScraper(
         let clienteFound = 0;
         let clienteViolations = 0;
 
+        // Tentar API oficial primeiro (se sellerId numérico e token disponível)
+        const isNumericSeller = /^\d+$/.test(searchKey);
+        const apiItems = isNumericSeller ? await fetchSellerItemsViaApi(searchKey) : null;
+
+        if (apiItems !== null) {
+          // ─── Via API Oficial ML ───
+          for (const item of apiItems) {
+            if (!item.mlbId || seenItemIds.has(item.mlbId)) continue;
+            seenItemIds.add(item.mlbId);
+            const match = matchProduct(item.title, catalog);
+            if (!match || match.confianca < 50) continue;
+            clienteFound++; totalFound++;
+            const isViolation = item.price < match.precoMinimo;
+            if (isViolation) { clienteViolations++; totalViolations++; }
+            await db.insert(priceSnapshots).values({ runId, productId: match.productId, sellerName: cliente.nome, sellerId: cliente.sellerId ?? String(cliente.id), clienteId: cliente.id, mlItemId: item.mlbId, mlTitle: item.title, mlUrl: item.url, mlThumbnail: item.thumbnail, plataforma: "mercadolivre", precoAnunciado: String(item.price), precoMinimo: String(match.precoMinimo), isViolation, validationReason: isViolation ? `Abaixo do mínimo (R$${match.precoMinimo})` : null, confianca: match.confianca, metodoMatch: match.metodoMatch });
+            if (isViolation) {
+              await db.insert(violations).values({ snapshotId: 0, runId, productId: match.productId, sellerName: cliente.nome, sellerId: cliente.sellerId ?? String(cliente.id), clienteId: cliente.id, mlItemId: item.mlbId, mlUrl: item.url, mlThumbnail: item.thumbnail, mlTitle: item.title, plataforma: "mercadolivre", precoAnunciado: String(item.price), precoMinimo: String(match.precoMinimo), diferenca: String(match.precoMinimo - item.price), percentAbaixo: String(((match.precoMinimo - item.price) / match.precoMinimo) * 100), confianca: match.confianca, metodoMatch: match.metodoMatch });
+            }
+          }
+          await db.update(clientes).set({ totalProdutos: clienteFound, totalViolacoes: clienteViolations, ultimaVerificacao: new Date() }).where(eq(clientes.id, cliente.id));
+          continue; // pular o loop de scraping abaixo
+        }
+
+        // ─── Fallback: scraping HTML ───
         for (let offset = 0; offset < 300; offset += 48) {
           const pageItems = await scrapeStorePage(searchKey, "ASX", offset);
           if (pageItems.length === 0) break;
