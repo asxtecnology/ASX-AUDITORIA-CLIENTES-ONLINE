@@ -232,3 +232,11 @@
 - [ ] Agendar verificações diárias às 10h e 16h (America/Sao_Paulo)
 - [ ] Criar dois gráficos no dashboard: 10h e 16h separados
 - [ ] Adicionar slot_hour (10 ou 16) nos monitoring_runs para identificar o turno
+
+## Remoção de Produtos por Palavra-chave (06/03/2026)
+- [x] Remover produtos com "chicote" (103), "bateria" (4) e "mostruario" (1) no nome — 108 produtos removidos, catálogo agora com 423 SKUs
+
+## Atualização Revendedores (06/03/2026)
+- [x] Atualizar EXTREME AUDIO: sellerId 186722996 → 188510514, lojaML extremeaudio (extraído da página ML)
+- [x] Remover TECNO AUDIO da base (sellerId era MLB3058625923 inválido)
+- [x] Atualizar LS DISTRIBUIDORA: sellerId "ls-distribuidora" → 26540544 (extraído da página ML)

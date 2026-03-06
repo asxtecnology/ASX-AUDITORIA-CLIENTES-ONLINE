@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT COUNT(*) as total, \n  SUM(CASE WHEN LOWER(name) LIKE '%chicote%' THEN 1 ELSE 0 END) as chicote,\n  SUM(CASE WHEN LOWER(name) LIKE '%bateria%' THEN 1 ELSE 0 END) as bateria,\n  SUM(CASE WHEN LOWER(name) LIKE '%mostruario%' OR LOWER(name) LIKE '%mostruário%' THEN 1 ELSE 0 END) as mostruario\nFROM products\nWHERE LOWER(name) LIKE '%chicote%' \n   OR LOWER(name) LIKE '%bateria%' \n   OR LOWER(name) LIKE '%mostruario%'\n   OR LOWER(name) LIKE '%mostruário%';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute \nSELECT COUNT(*) as total, \n  SUM(CASE WHEN LOWER(name) LIKE '%chicote%' THEN 1 ELSE 0 END) as chicote,\n  SUM(CASE WHEN LOWER(name) LIKE '%bateria%' THEN 1 ELSE 0 END) as bateria,\n  SUM(CASE WHEN LOWER(name) LIKE '%mostruario%' OR LOWER(name) LIKE '%mostruário%' THEN 1 ELSE 0 END) as mostruario\nFROM products\nWHERE LOWER(name) LIKE '%chicote%' \n   OR LOWER(name) LIKE '%bateria%' \n   OR LOWER(name) LIKE '%mostruario%'\n   OR LOWER(name) LIKE '%mostruário%';\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'name' in 'where clause'"
+  ]
+}

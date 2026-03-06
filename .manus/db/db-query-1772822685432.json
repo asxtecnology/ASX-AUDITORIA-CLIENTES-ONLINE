@@ -1,0 +1,360 @@
+{
+  "query": "\nSELECT id, codigo, descricao, categoria, linha\nFROM products\nWHERE LOWER(descricao) LIKE '%chicote%' \n   OR LOWER(descricao) LIKE '%bateria%' \n   OR LOWER(descricao) LIKE '%mostruario%'\n   OR LOWER(descricao) LIKE '%mostruário%'\nORDER BY descricao\nLIMIT 50;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute \nSELECT id, codigo, descricao, categoria, linha\nFROM products\nWHERE LOWER(descricao) LIKE '%chicote%' \n   OR LOWER(descricao) LIKE '%bateria%' \n   OR LOWER(descricao) LIKE '%mostruario%'\n   OR LOWER(descricao) LIKE '%mostruário%'\nORDER BY descricao\nLIMIT 50;\n",
+  "rows": [
+    {
+      "id": "531",
+      "codigo": "ASX8323",
+      "descricao": "BATERIA A23 - 12V",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "408",
+      "codigo": "ASX8316",
+      "descricao": "BATERIA CR2016 - 3V",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "409",
+      "codigo": "ASX8325",
+      "descricao": "BATERIA CR2025 - 3V",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "410",
+      "codigo": "ASX8332",
+      "descricao": "BATERIA CR2032 - 3V",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "490",
+      "codigo": "ASX8501",
+      "descricao": "CHICOTE 12V REPARO ARLA / FAROL SCANIA SERIE 6 NTG - 5592 - CX12.5592",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "423",
+      "codigo": "ASX8429",
+      "descricao": "CHICOTE 2V BOMBA COMBUSTÍVEL UNIVERSAL - CX02.5114",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "418",
+      "codigo": "ASX8424",
+      "descricao": "CHICOTE 2V SELADO - CX02.7731",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "481",
+      "codigo": "ASX8492",
+      "descricao": "CHICOTE 3V REPARO MODULO INJECAO ELETRONICA VW CAMINHAO CONSTELLATION FEMEA - 5976 - CX03.5976",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "436",
+      "codigo": "ASX8444",
+      "descricao": "CHICOTE 3V SENSOR POSIÇÃO BORBOLETA TPS - CX03.7741",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "487",
+      "codigo": "ASX8498",
+      "descricao": "CHICOTE 4V REPARO CAMINHAO/ONIBUS/AGRIOLA/LINHA DEUTSCH FEMEA - 5447 - CX04.5447",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "488",
+      "codigo": "ASX8499",
+      "descricao": "CHICOTE 4V REPARO CAMINHAO/ONIBUS/AGRIOLA/LINHA DEUTSCH MACHO - 9447 - CX04.9447",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "486",
+      "codigo": "ASX8497",
+      "descricao": "CHICOTE 4V REPARO SENSOR DE FLUXO MASSA DE AR - CX04.7742",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "417",
+      "codigo": "ASX8423",
+      "descricao": "CHICOTE 5V LANTERNA GUERRA / RANDON / LIBRELATO - CX05.7760",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "428",
+      "codigo": "ASX8434",
+      "descricao": "CHICOTE 6V SELADO LANTERNA GUERRA / RANDON / LIBRELATO - CX06.5208",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "421",
+      "codigo": "ASX8427",
+      "descricao": "CHICOTE 7 VIAS AMARELO - ESQUERDO",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "420",
+      "codigo": "ASX8426",
+      "descricao": "CHICOTE 7 VIAS VERDE - DIREITO",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "429",
+      "codigo": "ASX8435",
+      "descricao": "CHICOTE 7V SCANIA MACHO - CX07.9665",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "489",
+      "codigo": "ASX8500",
+      "descricao": "CHICOTE 8V REPARO DOSADOR SISTEMA ARLA 32 - BOMBA ADBLUE MODERNA MB FEMEA - 60CM - 5323 - CX08.5323",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "442",
+      "codigo": "ASX8452",
+      "descricao": "CHICOTE ALTERNADOR E SENSOR PRESSÃO DO OLEO – VW 1 VIA  FEMEA - CX01.5111",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "454",
+      "codigo": "ASX8464",
+      "descricao": "CHICOTE BAIONETA /BUZINA / LANTERNA / INTERRUP. CEBOLINHA / FREIOS / COMPRESSOR / FILTROS / LIGAÇÕES DO MOTOR 2 VIAS FEMEA - CX02.7687",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "449",
+      "codigo": "ASX8459",
+      "descricao": "CHICOTE BICO INJETOR / SENSOR DE TEMP./ SENSOR CARROCERIA / FLANGE BOMBA DE COMB./ REGULADOR DE VOLT. ALTERN./ DETONAÇAO ARLA 2 VIAS - CX02.5709",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "497",
+      "codigo": "ASX8508",
+      "descricao": "CHICOTE BICO INJETOR HONDA - CX02.5712",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "478",
+      "codigo": "ASX8488",
+      "descricao": "CHICOTE BOBINA DE IGNIÇÃO – SONDA LAMBDA 4 VIAS - CX04.7789",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "479",
+      "codigo": "ASX8489",
+      "descricao": "CHICOTE BOMBA DE COMBUSTIVEL FORD 5 x 4 FIOS - CX05.5058",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "482",
+      "codigo": "ASX8493",
+      "descricao": "CHICOTE BOMBA DE COMBUSTIVEL RENAULT- PEUGEOT – 6 VIAS – FEMEA - CX06.5107",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "468",
+      "codigo": "ASX8478",
+      "descricao": "CHICOTE BULLDOG 2 VIAS - CX02.7879",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "455",
+      "codigo": "ASX8465",
+      "descricao": "CHICOTE CEBOLÃO DO RADIADOR – AR CONDICIONADO 2 VIAS - CX02.7705",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "471",
+      "codigo": "ASX8481",
+      "descricao": "CHICOTE CONECTOR ALTO FALANTE 2 VIAS MACHO - CX02.9886",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "467",
+      "codigo": "ASX8477",
+      "descricao": "CHICOTE CONECTOR RESERVATORIO 2 VIAS - CX02.7877",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "458",
+      "codigo": "ASX8468",
+      "descricao": "CHICOTE ELETROVENTILADOR DO RADIADOR 2 VIAS - CX02.7728",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "437",
+      "codigo": "ASX8445",
+      "descricao": "CHICOTE FUSÍVEL COM TAMPA FIXAÇÃO VEDADO - CX02.8541",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "465",
+      "codigo": "ASX8475",
+      "descricao": "CHICOTE INTERRUPTOR LUZ RÉ / SENSOR DE TEMPERATUA 2 VIAS - CX02.7798",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "463",
+      "codigo": "ASX8473",
+      "descricao": "CHICOTE LAMPADA HB3 (9005) 2 VIAS - CX02.7774",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "419",
+      "codigo": "ASX8425",
+      "descricao": "CHICOTE LANTERNA 7V SCANIA / MB / VOLVO FÊMEA - CX07.7665",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "473",
+      "codigo": "ASX8483",
+      "descricao": "CHICOTE PARA DISTRIBUIDOR LINHA 3 VIAS - CX03.7791",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "440",
+      "codigo": "ASX8450",
+      "descricao": "CHICOTE PORTA FUSÍVEL 1.5MM - CX02.7198",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "441",
+      "codigo": "ASX8451",
+      "descricao": "CHICOTE PORTA FUSÍVEL 2.5MM - CX02.7198A",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "451",
+      "codigo": "ASX8461",
+      "descricao": "CHICOTE PORTA FUSIVEL LAMINA MAX FIO 4.0 - FEMEA 2 VIAS - CX02.7197",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "448",
+      "codigo": "ASX8458",
+      "descricao": "CHICOTE REGULADOR DE VOLTAGEM -  BUZINA VW 2 VIAS - CX02.5708",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "447",
+      "codigo": "ASX8457",
+      "descricao": "CHICOTE REGULADOR DE VOLTAGEM E ALTERNADOR VW 2 VIAS - CX02.5705",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "425",
+      "codigo": "ASX8431",
+      "descricao": "CHICOTE RELE 5 PINOS - CX05.7595",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "480",
+      "codigo": "ASX8491",
+      "descricao": "CHICOTE REP MEDIDOR DE FLUXO AR CONEXAO COLETOR - ADMISSAO INTEGRADO - MEDIDOS DE MASSA DE AR 5 VIAS - CX05.7881",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "493",
+      "codigo": "ASX8504",
+      "descricao": "CHICOTE REP SENSOR CINTO SEG ÔNIBUS / EMPILHADEIRA / SENS ÓLEO / BICO PULVERIZADOR 2 VIAS - CX02.5130",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "430",
+      "codigo": "ASX8436",
+      "descricao": "CHICOTE REPARO 2V H11 - CX02.7179",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "431",
+      "codigo": "ASX8437",
+      "descricao": "CHICOTE REPARO 2V PORTA FÊMEA - CX02.7799",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "432",
+      "codigo": "ASX8438",
+      "descricao": "CHICOTE REPARO 4V - CX04.7664",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "433",
+      "codigo": "ASX8439",
+      "descricao": "CHICOTE REPARO 4V - CX04.7734",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "517",
+      "codigo": "ASX8528",
+      "descricao": "CHICOTE REPARO 4VIAS MACHO - CX04.9664",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "422",
+      "codigo": "ASX8428",
+      "descricao": "CHICOTE REPARO 5 VIAS - CX05.9760",
+      "categoria": "NULL",
+      "linha": "NULL"
+    },
+    {
+      "id": "438",
+      "codigo": "ASX8446",
+      "descricao": "CHICOTE REPARO ALTERNADOR 5V - CX05.7599",
+      "categoria": "NULL",
+      "linha": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcodigo\tdescricao\tcategoria\tlinha\n531\tASX8323\tBATERIA A23 - 12V\tNULL\tNULL\n408\tASX8316\tBATERIA CR2016 - 3V\tNULL\tNULL\n409\tASX8325\tBATERIA CR2025 - 3V\tNULL\tNULL\n410\tASX8332\tBATERIA CR2032 - 3V\tNULL\tNULL\n490\tASX8501\tCHICOTE 12V REPARO ARLA / FAROL SCANIA SERIE 6 NTG - 5592 - CX12.5592\tNULL\tNULL\n423\tASX8429\tCHICOTE 2V BOMBA COMBUSTÍVEL UNIVERSAL - CX02.5114\tNULL\tNULL\n418\tASX8424\tCHICOTE 2V SELADO - CX02.7731\tNULL\tNULL\n481\tASX8492\tCHICOTE 3V REPARO MODULO INJECAO ELETRONICA VW CAMINHAO CONSTELLATION FEMEA - 5976 - CX03.5976\tNULL\tNULL\n436\tASX8444\tCHICOTE 3V SENSOR POSIÇÃO BORBOLETA TPS - CX03.7741\tNULL\tNULL\n487\tASX8498\tCHICOTE 4V REPARO CAMINHAO/ONIBUS/AGRIOLA/LINHA DEUTSCH FEMEA - 5447 - CX04.5447\tNULL\tNULL\n488\tASX8499\tCHICOTE 4V REPARO CAMINHAO/ONIBUS/AGRIOLA/LINHA DEUTSCH MACHO - 9447 - CX04.9447\tNULL\tNULL\n486\tASX8497\tCHICOTE 4V REPARO SENSOR DE FLUXO MASSA DE AR - CX04.7742\tNULL\tNULL\n417\tASX8423\tCHICOTE 5V LANTERNA GUERRA / RANDON / LIBRELATO - CX05.7760\tNULL\tNULL\n428\tASX8434\tCHICOTE 6V SELADO LANTERNA GUERRA / RANDON / LIBRELATO - CX06.5208\tNULL\tNULL\n421\tASX8427\tCHICOTE 7 VIAS AMARELO - ESQUERDO\tNULL\tNULL\n420\tASX8426\tCHICOTE 7 VIAS VERDE - DIREITO\tNULL\tNULL\n429\tASX8435\tCHICOTE 7V SCANIA MACHO - CX07.9665\tNULL\tNULL\n489\tASX8500\tCHICOTE 8V REPARO DOSADOR SISTEMA ARLA 32 - BOMBA ADBLUE MODERNA MB FEMEA - 60CM - 5323 - CX08.5323\tNULL\tNULL\n442\tASX8452\tCHICOTE ALTERNADOR E SENSOR PRESSÃO DO OLEO – VW 1 VIA  FEMEA - CX01.5111\tNULL\tNULL\n454\tASX8464\tCHICOTE BAIONETA /BUZINA / LANTERNA / INTERRUP. CEBOLINHA / FREIOS / COMPRESSOR / FILTROS / LIGAÇÕES DO MOTOR 2 VIAS FEMEA - CX02.7687\tNULL\tNULL\n449\tASX8459\tCHICOTE BICO INJETOR / SENSOR DE TEMP./ SENSOR CARROCERIA / FLANGE BOMBA DE COMB./ REGULADOR DE VOLT. ALTERN./ DETONAÇAO ARLA 2 VIAS - CX02.5709\tNULL\tNULL\n497\tASX8508\tCHICOTE BICO INJETOR HONDA - CX02.5712\tNULL\tNULL\n478\tASX8488\tCHICOTE BOBINA DE IGNIÇÃO – SONDA LAMBDA 4 VIAS - CX04.7789\tNULL\tNULL\n479\tASX8489\tCHICOTE BOMBA DE COMBUSTIVEL FORD 5 x 4 FIOS - CX05.5058\tNULL\tNULL\n482\tASX8493\tCHICOTE BOMBA DE COMBUSTIVEL RENAULT- PEUGEOT – 6 VIAS – FEMEA - CX06.5107\tNULL\tNULL\n468\tASX8478\tCHICOTE BULLDOG 2 VIAS - CX02.7879\tNULL\tNULL\n455\tASX8465\tCHICOTE CEBOLÃO DO RADIADOR – AR CONDICIONADO 2 VIAS - CX02.7705\tNULL\tNULL\n471\tASX8481\tCHICOTE CONECTOR ALTO FALANTE 2 VIAS MACHO - CX02.9886\tNULL\tNULL\n467\tASX8477\tCHICOTE CONECTOR RESERVATORIO 2 VIAS - CX02.7877\tNULL\tNULL\n458\tASX8468\tCHICOTE ELETROVENTILADOR DO RADIADOR 2 VIAS - CX02.7728\tNULL\tNULL\n437\tASX8445\tCHICOTE FUSÍVEL COM TAMPA FIXAÇÃO VEDADO - CX02.8541\tNULL\tNULL\n465\tASX8475\tCHICOTE INTERRUPTOR LUZ RÉ / SENSOR DE TEMPERATUA 2 VIAS - CX02.7798\tNULL\tNULL\n463\tASX8473\tCHICOTE LAMPADA HB3 (9005) 2 VIAS - CX02.7774\tNULL\tNULL\n419\tASX8425\tCHICOTE LANTERNA 7V SCANIA / MB / VOLVO FÊMEA - CX07.7665\tNULL\tNULL\n473\tASX8483\tCHICOTE PARA DISTRIBUIDOR LINHA 3 VIAS - CX03.7791\tNULL\tNULL\n440\tASX8450\tCHICOTE PORTA FUSÍVEL 1.5MM - CX02.7198\tNULL\tNULL\n441\tASX8451\tCHICOTE PORTA FUSÍVEL 2.5MM - CX02.7198A\tNULL\tNULL\n451\tASX8461\tCHICOTE PORTA FUSIVEL LAMINA MAX FIO 4.0 - FEMEA 2 VIAS - CX02.7197\tNULL\tNULL\n448\tASX8458\tCHICOTE REGULADOR DE VOLTAGEM -  BUZINA VW 2 VIAS - CX02.5708\tNULL\tNULL\n447\tASX8457\tCHICOTE REGULADOR DE VOLTAGEM E ALTERNADOR VW 2 VIAS - CX02.5705\tNULL\tNULL\n425\tASX8431\tCHICOTE RELE 5 PINOS - CX05.7595\tNULL\tNULL\n480\tASX8491\tCHICOTE REP MEDIDOR DE FLUXO AR CONEXAO COLETOR - ADMISSAO INTEGRADO - MEDIDOS DE MASSA DE AR 5 VIAS - CX05.7881\tNULL\tNULL\n493\tASX8504\tCHICOTE REP SENSOR CINTO SEG ÔNIBUS / EMPILHADEIRA / SENS ÓLEO / BICO PULVERIZADOR 2 VIAS - CX02.5130\tNULL\tNULL\n430\tASX8436\tCHICOTE REPARO 2V H11 - CX02.7179\tNULL\tNULL\n431\tASX8437\tCHICOTE REPARO 2V PORTA FÊMEA - CX02.7799\tNULL\tNULL\n432\tASX8438\tCHICOTE REPARO 4V - CX04.7664\tNULL\tNULL\n433\tASX8439\tCHICOTE REPARO 4V - CX04.7734\tNULL\tNULL\n517\tASX8528\tCHICOTE REPARO 4VIAS MACHO - CX04.9664\tNULL\tNULL\n422\tASX8428\tCHICOTE REPARO 5 VIAS - CX05.9760\tNULL\tNULL\n438\tASX8446\tCHICOTE REPARO ALTERNADOR 5V - CX05.7599\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}
