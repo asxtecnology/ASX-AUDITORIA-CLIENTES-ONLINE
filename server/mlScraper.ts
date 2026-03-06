@@ -66,6 +66,51 @@ async function getMlAccessToken(): Promise<string | null> {
   return cred.accessToken;
 }
 
+// ─── API Pública ML (sem autenticação) ──────────────────────────────────────
+async function fetchSellerItemsPublicApi(sellerId: string, siteId = "MLB"): Promise<ScrapedProduct[]> {
+  const results: ScrapedProduct[] = [];
+  let offset = 0;
+  const limit = 50;
+  try {
+    while (true) {
+      const res = await axios.get(`https://api.mercadolibre.com/sites/${siteId}/search`, {
+        params: { seller_id: sellerId, limit, offset },
+        timeout: 15_000,
+      });
+      const items: Array<{ id: string; title: string; price: number; permalink: string; thumbnail: string; seller: { nickname: string } }> = res.data.results ?? [];
+      for (const item of items) {
+        results.push({ mlbId: item.id, title: item.title, price: item.price, url: item.permalink, thumbnail: item.thumbnail, sellerNickname: item.seller?.nickname ?? sellerId });
+      }
+      if (items.length < limit) break;
+      offset += limit;
+      if (offset >= 1000) break;
+      await sleep(300);
+    }
+    console.log(`[ML Public API] Seller ${sellerId}: ${results.length} anúncios.`);
+    return results;
+  } catch (e: unknown) {
+    console.warn(`[ML Public API] Erro seller ${sellerId}: ${e instanceof Error ? e.message : String(e)}`);
+    return [];
+  }
+}
+
+async function searchItemsPublicApi(query: string, sellerId: string | null, siteId = "MLB", limit = 50): Promise<ScrapedProduct[]> {
+  try {
+    const params: Record<string, string | number> = { q: query, limit };
+    if (sellerId) params.seller_id = sellerId;
+    const res = await axios.get(`https://api.mercadolibre.com/sites/${siteId}/search`, {
+      params,
+      timeout: 15_000,
+    });
+    const items: Array<{ id: string; title: string; price: number; permalink: string; thumbnail: string; seller: { nickname: string } }> = res.data.results ?? [];
+    console.log(`[ML Public API] Query "${query}" seller=${sellerId ?? 'todos'}: ${items.length} resultados.`);
+    return items.map(item => ({ mlbId: item.id, title: item.title, price: item.price, url: item.permalink, thumbnail: item.thumbnail, sellerNickname: item.seller?.nickname ?? "desconhecido" }));
+  } catch (e: unknown) {
+    console.warn(`[ML Public API] Erro query "${query}": ${e instanceof Error ? e.message : String(e)}`);
+    return [];
+  }
+}
+
 async function fetchSellerItemsViaApi(sellerId: string, siteId = "MLB"): Promise<ScrapedProduct[] | null> {
   const token = await getMlAccessToken();
   if (!token) return null;
@@ -472,12 +517,24 @@ export async function runScraper(
         let clienteFound = 0;
         let clienteViolations = 0;
 
-        // Tentar API oficial primeiro (se sellerId numérico e token disponível)
+        // Tentar API pública primeiro (se sellerId numérico) — sem autenticação necessária
         const isNumericSeller = /^\d+$/.test(searchKey);
-        const apiItems = isNumericSeller ? await fetchSellerItemsViaApi(searchKey) : null;
-
-        if (apiItems !== null) {
-          // ─── Via API Oficial ML ───
+        // API pública: usa sellerId numérico diretamente
+        // Fallback: API oficial com token (se configurado)
+        // Último recurso: scraping HTML
+        let apiItems: ScrapedProduct[] | null = null;
+        if (isNumericSeller) {
+          // 1º: tenta API pública (sem token)
+          const publicItems = await fetchSellerItemsPublicApi(searchKey);
+          if (publicItems.length > 0) {
+            apiItems = publicItems;
+          } else {
+            // 2º: tenta API oficial com token (se configurado)
+            apiItems = await fetchSellerItemsViaApi(searchKey);
+          }
+        }
+        if (apiItems !== null && apiItems.length > 0) {
+          // ─── Via API ML (pública ou oficial) ────
           for (const item of apiItems) {
             if (!item.mlbId || seenItemIds.has(item.mlbId)) continue;
             seenItemIds.add(item.mlbId);
@@ -613,46 +670,24 @@ export async function runScraper(
       // ═══════════════════════════════════════════════════════
       // FASE 2 — Busca geral por código ASX (vendedores não cadastrados)
       // ═══════════════════════════════════════════════════════
-      if (!options.clienteId) {
-        console.log("[Scraper v4] Fase2: busca geral por código ASX...");
+           if (!options.clienteId) {
+        console.log("[Scraper v4] Fase2: busca geral por código ASX via API pública...");
         const topProducts = catalog.slice(0, 15);
-
         for (const prod of topProducts) {
-          const url = `https://lista.mercadolivre.com.br/${encodeURIComponent(prod.codigo)}_NoIndex_True`;
-          const html = await fetchHtml(url);
-          if (!html) continue;
-
-          const $ = cheerio.load(html);
-          const fase2Items: Array<{ title: string; price: number; mlbId: string; href: string; sellerEl: string; thumbnail: string }> = [];
-
-          $("li.ui-search-layout__item").each((_: number, card: any) => {
-            const $card = $(card);
-            const title =
-              $card.find(".poly-component__title").text().trim() ||
-              $card.find(".ui-search-item__title").text().trim();
-            if (!title) return;
-
-            const priceText = $card.find(".poly-price__current").first().text().trim();
-            const priceMatch = priceText.replace(/\./g, "").match(/[\d,]+/);
-            if (!priceMatch) return;
-            const price = parseFloat(priceMatch[0].replace(",", "."));
-            if (!price || isNaN(price)) return;
-
-            const href = $card.find("a[href]").first().attr("href") || "";
-            const mlbMatch = href.match(/(MLB\d+)/);
-            const mlbId = mlbMatch ? mlbMatch[1] : "";
-            if (!mlbId || seenItemIds.has(mlbId)) return;
-            seenItemIds.add(mlbId);
-
-            const sellerEl = $card.find(".poly-component__seller").text().trim();
-            const thumbnail =
-              $card.find("img").first().attr("src") ||
-              $card.find("img").first().attr("data-src") ||
-              "";
-
-            fase2Items.push({ title, price, mlbId, href, sellerEl, thumbnail });
+          // Usa API pública do ML (sem autenticação) para busca geral
+          const fase2ApiItems = await searchItemsPublicApi(`ASX ${prod.codigo}`, null);
+          const fase2Items = fase2ApiItems.map(item => ({
+            title: item.title,
+            price: item.price,
+            mlbId: item.mlbId,
+            href: item.url,
+            sellerEl: item.sellerNickname,
+            thumbnail: item.thumbnail,
+          })).filter(item => {
+            if (!item.mlbId || seenItemIds.has(item.mlbId)) return false;
+            seenItemIds.add(item.mlbId);
+            return true;
           });
-
           for (const item of fase2Items) {
             const match = matchProduct(item.title, catalog);
             if (!match || match.confianca < 70) continue;

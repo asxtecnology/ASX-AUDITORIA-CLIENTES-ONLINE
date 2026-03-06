@@ -217,3 +217,11 @@
 
 ## Novo Revendedor: PLANETA DO CARBURADOR (06/03/2026)
 - [x] Inserir PLANETA DO CARBURADOR (sellerId: 632372681, lojaML: planetadocarburadorr8181) na base
+
+## API Pública ML sem autenticação (06/03/2026)
+- [x] Implementar fetchSellerItemsPublicApi() usando GET /sites/MLB/search?seller_id={id} (sem token)
+- [x] Implementar searchItemsPublicApi() usando GET /sites/MLB/search?q={query}&seller_id={id} (sem token)
+- [x] Fase 1: prioridade 1º API pública, 2º API oficial (token), 3º scraping HTML
+- [x] Fase 2: usa searchItemsPublicApi() em vez de scraping HTML
+- [x] 24/24 testes passando, 0 erros TypeScript
+- [ ] Testar em produção (sandbox bloqueado pelo ML) após publicar
