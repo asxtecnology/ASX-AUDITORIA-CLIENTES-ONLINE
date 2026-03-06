@@ -76,6 +76,7 @@ export const monitoringRuns = mysqlTable("monitoring_runs", {
   totalViolations: int("totalViolations").default(0),
   errorMessage: text("errorMessage"),
   triggeredBy: mysqlEnum("triggeredBy", ["scheduled", "manual"]).default("scheduled").notNull(),
+  slotHour: int("slotHour"), // 10 = turno manhã, 16 = turno tarde, null = manual
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
   clienteId: int("clienteId"),
 });

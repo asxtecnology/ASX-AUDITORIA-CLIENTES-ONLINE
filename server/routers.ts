@@ -15,6 +15,7 @@ import {
   getProducts,
   getViolationStats,
   getViolationTrend,
+  getViolationTrendBySlot,
   getViolations,
   initDefaultSettings,
   toggleProductActive,
@@ -182,6 +183,9 @@ const monitoringRouter = router({
   trend: protectedProcedure
     .input(z.object({ days: z.number().default(30) }))
     .query(({ input }) => getViolationTrend(input.days)),
+  trendBySlot: protectedProcedure
+    .input(z.object({ days: z.number().default(30) }))
+    .query(({ input }) => getViolationTrendBySlot(input.days)),
 });
 
 // Violations Router

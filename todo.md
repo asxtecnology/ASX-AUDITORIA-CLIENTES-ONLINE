@@ -225,3 +225,10 @@
 - [x] Fase 2: usa searchItemsPublicApi() em vez de scraping HTML
 - [x] 24/24 testes passando, 0 erros TypeScript
 - [ ] Testar em produção (sandbox bloqueado pelo ML) após publicar
+
+## Reset + Agendamento + Gráficos por Horário (06/03/2026)
+- [ ] Zerar violations, price_snapshots e monitoring_runs no banco
+- [ ] Executar nova verificação completa
+- [ ] Agendar verificações diárias às 10h e 16h (America/Sao_Paulo)
+- [ ] Criar dois gráficos no dashboard: 10h e 16h separados
+- [ ] Adicionar slot_hour (10 ou 16) nos monitoring_runs para identificar o turno

@@ -1,0 +1,25 @@
+{
+  "query": "SELECT COUNT(*) as violations FROM violations; SELECT COUNT(*) as snapshots FROM price_snapshots; SELECT COUNT(*) as runs FROM monitoring_runs;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute SELECT COUNT(*) as violations FROM violations; SELECT COUNT(*) as snapshots FROM price_snapshots; SELECT COUNT(*) as runs FROM monitoring_runs;",
+  "rows": [
+    {
+      "violations": "0"
+    },
+    {
+      "violations": "snapshots"
+    },
+    {
+      "violations": "0"
+    },
+    {
+      "violations": "runs"
+    },
+    {
+      "violations": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "violations\n0\nsnapshots\n0\nruns\n0\n",
+  "stderr": "",
+  "execution_time_ms": 67
+}

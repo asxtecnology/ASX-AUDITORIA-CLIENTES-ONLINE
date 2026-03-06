@@ -72,6 +72,10 @@ export default function Dashboard() {
     isLoading: trendLoading,
   } = trpc.monitoring.trend.useQuery({ days: 30 });
   const {
+    data: trendSlot,
+    isLoading: trendSlotLoading,
+  } = trpc.monitoring.trendBySlot.useQuery({ days: 30 });
+  const {
     data: latestRun,
     refetch: refetchRun,
   } = trpc.monitoring.latest.useQuery();
@@ -177,14 +181,14 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Charts Row */}
+      {/* Charts Row — Tendência Geral */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Trend Chart */}
+        {/* Trend Chart Geral */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              Violações nos Últimos 30 Dias
+              Violações nos Últimos 30 Dias (Geral)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -250,6 +254,89 @@ export default function Dashboard() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row — Turnos 10h e 16h */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Gráfico Turno Manhã 10h */}
+        <Card className="border-blue-500/20 bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-blue-400" />
+              <span>Violações — Turno Manhã <span className="text-blue-400 font-bold">10h</span></span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trendSlotLoading ? (
+              <Skeleton className="h-[200px] w-full rounded-lg" />
+            ) : (trendSlot?.slot10 ?? []).length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={(trendSlot?.slot10 ?? []).map(t => ({ date: formatDateShort(t.date), violations: t.count }))}>
+                  <defs>
+                    <linearGradient id="slot10Grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.25 0.015 250)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
+                  <Tooltip
+                    contentStyle={{ background: "oklch(0.17 0.015 250)", border: "1px solid oklch(0.25 0.015 250)", borderRadius: "8px", color: "oklch(0.95 0.01 250)" }}
+                    labelStyle={{ color: "oklch(0.6 0.02 250)" }}
+                  />
+                  <Area type="monotone" dataKey="violations" stroke="#3b82f6" fill="url(#slot10Grad)" strokeWidth={2} name="Violações 10h" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[200px] flex flex-col items-center justify-center text-muted-foreground text-sm gap-2">
+                <Clock className="h-8 w-8 text-blue-400/30" />
+                <span>Aguardando dados do turno das 10h.</span>
+                <span className="text-xs">Próxima execução automática: hoje às 10:00 (BRT)</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Gráfico Turno Tarde 16h */}
+        <Card className="border-purple-500/20 bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-purple-400" />
+              <span>Violações — Turno Tarde <span className="text-purple-400 font-bold">16h</span></span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trendSlotLoading ? (
+              <Skeleton className="h-[200px] w-full rounded-lg" />
+            ) : (trendSlot?.slot16 ?? []).length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={(trendSlot?.slot16 ?? []).map(t => ({ date: formatDateShort(t.date), violations: t.count }))}>
+                  <defs>
+                    <linearGradient id="slot16Grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.25 0.015 250)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }} />
+                  <Tooltip
+                    contentStyle={{ background: "oklch(0.17 0.015 250)", border: "1px solid oklch(0.25 0.015 250)", borderRadius: "8px", color: "oklch(0.95 0.01 250)" }}
+                    labelStyle={{ color: "oklch(0.6 0.02 250)" }}
+                  />
+                  <Area type="monotone" dataKey="violations" stroke="#a855f7" fill="url(#slot16Grad)" strokeWidth={2} name="Violações 16h" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[200px] flex flex-col items-center justify-center text-muted-foreground text-sm gap-2">
+                <Clock className="h-8 w-8 text-purple-400/30" />
+                <span>Aguardando dados do turno das 16h.</span>
+                <span className="text-xs">Próxima execução automática: hoje às 16:00 (BRT)</span>
+              </div>
             )}
           </CardContent>
         </Card>

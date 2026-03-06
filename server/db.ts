@@ -325,7 +325,43 @@ export async function getViolationTrend(days = 30) {
   }
 }
 
-// ─── Alert Configs ────────────────────────────────────────────────────────────
+// ─── Violation Trend por Slot (10h e 16h) ──────────────────────────────────────────────
+export async function getViolationTrendBySlot(days = 30) {
+  const db = await getDb();
+  if (!db) return { slot10: [], slot16: [] };
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  try {
+    const rows = await db.execute(
+      sql`SELECT DATE(v.detectedAt) as date,
+                 mr.slotHour,
+                 COUNT(*) as cnt
+          FROM violations v
+          LEFT JOIN monitoring_runs mr ON mr.id = v.runId
+          WHERE v.detectedAt >= ${since}
+          GROUP BY DATE(v.detectedAt), mr.slotHour
+          ORDER BY DATE(v.detectedAt)`
+    );
+    const results: any[] = Array.isArray(rows)
+      ? Array.isArray((rows as any)[0])
+        ? ((rows as any)[0] as any[])
+        : (rows as any[])
+      : [];
+    const slot10: { date: string; count: number }[] = [];
+    const slot16: { date: string; count: number }[] = [];
+    for (const r of results) {
+      const entry = { date: String(r.date), count: Number(r.cnt) };
+      if (Number(r.slotHour) === 10) slot10.push(entry);
+      else if (Number(r.slotHour) === 16) slot16.push(entry);
+    }
+    return { slot10, slot16 };
+  } catch (e) {
+    console.error("[DB] getViolationTrendBySlot error:", e);
+    return { slot10: [], slot16: [] };
+  }
+}
+
+// ─── Alert Configs ────────────────────────────────────────────────────────────────
 export async function getAlertConfigs(): Promise<AlertConfig[]> {
   const db = await getDb();
   if (!db) return [];

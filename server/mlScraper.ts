@@ -189,6 +189,7 @@ interface MatchResult {
 export interface ScrapeOptions {
   clienteId?: number;
   triggeredBy?: "scheduled" | "manual";
+  slotHour?: number; // 10 = manhã, 16 = tarde, undefined = manual
 }
 
 type CatalogItem = {
@@ -452,14 +453,15 @@ export async function runScraper(
     if (!db) throw new Error("Banco de dados não disponível");
 
     const triggeredBy = options.triggeredBy ?? "scheduled";
-    console.log(`[Scraper v4] Iniciando... triggeredBy=${triggeredBy}, clienteId=${options.clienteId ?? "todos"}`);
-
+    const slotHour = options.slotHour ?? null;
+    console.log(`[Scraper v4] Iniciando... triggeredBy=${triggeredBy}, slotHour=${slotHour ?? "manual"}, clienteId=${options.clienteId ?? "todos"}`);
     // ── CRIAR REGISTRO DE EXECUÇÃO (PostgreSQL: .returning()) ──
     const runInsert = await db
       .insert(monitoringRuns)
       .values({
         status: "running",
         triggeredBy,
+        slotHour,
         clienteId: options.clienteId ?? null,
         plataforma: "mercadolivre",
       })
@@ -785,54 +787,59 @@ export async function runMonitoring(triggeredBy: "scheduled" | "manual" = "sched
   return { success: true, productsFound: result.found, violationsFound: result.violations, runId: result.runId };
 }
 
-// ─── Agendador ────────────────────────────────────────────────────────────────
-let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
+// ─── Agendador Duplo (10h e 16h, America/Sao_Paulo) ─────────────────────────
+const SLOT_HOURS = [10, 16]; // Turnos fixos: manhã e tarde
+const schedulerTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
 
 export function startScheduler() {
   stopScheduler();
-  void scheduleNext();
+  for (const slotHour of SLOT_HOURS) {
+    void scheduleSlot(slotHour);
+  }
 }
 
-async function scheduleNext() {
+async function scheduleSlot(slotHour: number) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Scheduler v4] Banco indisponível, agendador não iniciado.");
+    console.warn(`[Scheduler v5] Banco indisponível, slot ${slotHour}h não agendado.`);
     return;
   }
-
   const ativoRaw = await getSetting("scraper_ativo");
-  const horaRaw  = await getSetting("scraper_hora");
   const ativo = (ativoRaw ?? "true").toLowerCase() === "true";
-  const hora  = Math.min(23, Math.max(0, parseInt(horaRaw ?? "14", 10) || 14));
-
   if (!ativo) {
-    console.log("[Scheduler v4] Agendador desativado (scraper_ativo=false).");
+    console.log(`[Scheduler v5] Agendador desativado (scraper_ativo=false). Slot ${slotHour}h ignorado.`);
     return;
   }
 
-  const now  = new Date();
+  const now = new Date();
+  // Calcular próxima execução no horário de Brasília (UTC-3)
   const next = new Date();
-  // Brasília = UTC-3
-  next.setUTCHours(hora + 3, 0, 0, 0);
+  next.setUTCHours(slotHour + 3, 0, 0, 0); // slotHour em BRT = slotHour+3 em UTC
   if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
-
   const delayMs = next.getTime() - now.getTime();
-  console.log(`[Scheduler v4] Próxima execução em ${Math.round(delayMs / 60000)} min (${next.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })})`);
+  const nextStr = next.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  console.log(`[Scheduler v5] Slot ${slotHour}h agendado: próxima execução em ${Math.round(delayMs / 60000)} min (${nextStr})`);
 
-  schedulerTimer = setTimeout(async () => {
+  const timer = setTimeout(async () => {
+    schedulerTimers.delete(slotHour);
     try {
-      await runScraper({ triggeredBy: "scheduled" });
+      console.log(`[Scheduler v5] Iniciando execução do slot ${slotHour}h...`);
+      await runScraper({ triggeredBy: "scheduled", slotHour });
+      console.log(`[Scheduler v5] Slot ${slotHour}h concluído.`);
     } catch (err: any) {
-      console.error("[Scheduler v4] Erro na execução agendada:", err.message);
+      console.error(`[Scheduler v5] Erro no slot ${slotHour}h:`, err.message);
     } finally {
-      void scheduleNext();
+      // Re-agendar para o próximo dia
+      void scheduleSlot(slotHour);
     }
   }, delayMs);
+  schedulerTimers.set(slotHour, timer);
 }
 
 export function stopScheduler() {
-  if (schedulerTimer) {
-    clearTimeout(schedulerTimer);
-    schedulerTimer = null;
-  }
+  schedulerTimers.forEach((timer, slotHour) => {
+    clearTimeout(timer);
+    console.log(`[Scheduler v5] Slot ${slotHour}h cancelado.`);
+  });
+  schedulerTimers.clear();
 }
