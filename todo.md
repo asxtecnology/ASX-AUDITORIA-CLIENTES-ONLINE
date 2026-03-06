@@ -214,3 +214,6 @@
 - [ ] Configurar App ML no Mercado Livre Developers (usuário)
 - [ ] Inserir App ID e Client Secret na página /ml
 - [ ] Completar fluxo OAuth e testar busca via API oficial
+
+## Novo Revendedor: PLANETA DO CARBURADOR (06/03/2026)
+- [x] Inserir PLANETA DO CARBURADOR (sellerId: 632372681, lojaML: planetadocarburadorr8181) na base

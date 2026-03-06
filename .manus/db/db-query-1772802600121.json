@@ -1,0 +1,9 @@
+{
+  "query": "\nINSERT INTO clientes (nome, lojaML, sellerId, linkLoja, status, totalProdutos, totalViolacoes, createdAt, updatedAt)\nVALUES (\n  'PLANETA DO CARBURADOR',\n  'planetadocarburadorr8181',\n  '632372681',\n  'https://lista.mercadolivre.com.br/_CustId_632372681',\n  'ativo',\n  0,\n  0,\n  NOW(),\n  NOW()\n);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute \nINSERT INTO clientes (nome, lojaML, sellerId, linkLoja, status, totalProdutos, totalViolacoes, createdAt, updatedAt)\nVALUES (\n  'PLANETA DO CARBURADOR',\n  'planetadocarburadorr8181',\n  '632372681',\n  'https://lista.mercadolivre.com.br/_CustId_632372681',\n  'ativo',\n  0,\n  0,\n  NOW(),\n  NOW()\n);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 117
+}

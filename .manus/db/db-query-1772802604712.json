@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, nome, lojaML, sellerId, linkLoja, status, createdAt FROM clientes WHERE sellerId = '632372681';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2vDSDNDUA8VuM2q.d7c3c6871b04 --database NPFC3DSbzknmDZg4Ci4BAq --execute SELECT id, nome, lojaML, sellerId, linkLoja, status, createdAt FROM clientes WHERE sellerId = '632372681';",
+  "rows": [
+    {
+      "id": "90001",
+      "nome": "PLANETA DO CARBURADOR",
+      "lojaML": "planetadocarburadorr8181",
+      "sellerId": "632372681",
+      "linkLoja": "https://lista.mercadolivre.com.br/_CustId_632372681",
+      "status": "ativo",
+      "createdAt": "2026-03-06 13:10:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tlojaML\tsellerId\tlinkLoja\tstatus\tcreatedAt\n90001\tPLANETA DO CARBURADOR\tplanetadocarburadorr8181\t632372681\thttps://lista.mercadolivre.com.br/_CustId_632372681\tativo\t2026-03-06 13:10:00\n",
+  "stderr": "",
+  "execution_time_ms": 66
+}
