@@ -240,3 +240,13 @@
 - [x] Atualizar EXTREME AUDIO: sellerId 186722996 → 188510514, lojaML extremeaudio (extraído da página ML)
 - [x] Remover TECNO AUDIO da base (sellerId era MLB3058625923 inválido)
 - [x] Atualizar LS DISTRIBUIDORA: sellerId "ls-distribuidora" → 26540544 (extraído da página ML)
+
+## Auditoria de Arquitetura e Segurança (09/03/2026)
+- [x] Análise completa: 12 problemas identificados (5 segurança, 4 bugs, 3 performance)
+- [x] S1: clientes.upsert protectedProcedure → adminProcedure
+- [x] S2: alerts.delete protectedProcedure → adminProcedure
+- [x] S3: settings.update protectedProcedure → adminProcedure
+- [x] B2: Pool MySQL com enableKeepAlive + connectionLimit para evitar ECONNRESET às 10h
+- [x] Gerar docs/architecture-audit.md com análise completa
+- [x] Gerar docs/supabase-migrations.sql com índices, FKs e RLS comentado
+- [x] 24/24 testes passando, 0 erros TypeScript

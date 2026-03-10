@@ -223,7 +223,7 @@ const clientesRouter = router({
     .input(z.object({ id: z.number() }))
     .query(({ input }) => getClienteById(input.id)),
 
-  upsert: protectedProcedure
+  upsert: adminProcedure
     .input(z.object({
       id: z.number().optional(),
       nome: z.string().min(1),
@@ -297,7 +297,7 @@ const alertsRouter = router({
     }))
     .mutation(({ input }) => upsertAlertConfig(input)),
 
-  delete: protectedProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ input }) => deleteAlertConfig(input.id)),
 });
@@ -306,7 +306,7 @@ const alertsRouter = router({
 const settingsRouter = router({
   getAll: protectedProcedure.query(() => getAllSettings()),
 
-  update: protectedProcedure
+  update: adminProcedure
     .input(z.object({ key: z.string(), value: z.string() }))
     .mutation(async ({ input }) => {
       await upsertSetting(input.key, input.value);

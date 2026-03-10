@@ -36,7 +36,15 @@ let _db: any = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      const pool = mysql.createPool(process.env.DATABASE_URL);
+      const pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        // Reconexão automática após ECONNRESET / timeout do servidor
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+      });
       _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
