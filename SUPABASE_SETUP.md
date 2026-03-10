@@ -2,8 +2,8 @@
 
 ## Projeto Supabase
 - **Nome:** ASX AUDITORIA CLIENTES ONLINE
-- **Project ID:** `wwqdcjvxbglczabhqowp`
-- **URL:** https://wwqdcjvxbglczabhqowp.supabase.co
+- **Project ID:** `SEU_PROJECT_ID`
+- **URL:** https://SEU_PROJECT_ID.supabase.co
 - **Região:** us-east-2 (Ohio)
 
 ## Status da Migração
@@ -31,12 +31,12 @@
 
 ### Pooler (recomendado para produção — suporta múltiplas conexões)
 ```
-DATABASE_URL=postgresql://postgres.wwqdcjvxbglczabhqowp:SUA_SENHA@aws-0-us-east-2.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.SEU_PROJECT_ID:SUA_SENHA@aws-0-us-east-2.pooler.supabase.com:6543/postgres
 ```
 
 ### Direto (para migrations e scripts)
 ```
-DIRECT_URL=postgresql://postgres:SUA_SENHA@db.wwqdcjvxbglczabhqowp.supabase.co:5432/postgres
+DIRECT_URL=postgresql://postgres:SUA_SENHA@db.SEU_PROJECT_ID.supabase.co:5432/postgres
 ```
 
 ## Clientes Cadastrados no Supabase
@@ -55,7 +55,7 @@ DIRECT_URL=postgresql://postgres:SUA_SENHA@db.wwqdcjvxbglczabhqowp.supabase.co:5
 ## Acesso ao Dashboard Supabase
 
 Acesse o painel de controle do banco em:
-👉 https://supabase.com/dashboard/project/wwqdcjvxbglczabhqowp
+👉 https://supabase.com/dashboard/project/SEU_PROJECT_ID
 
 Lá você pode:
 - Visualizar e editar dados diretamente na aba **Table Editor**
@@ -77,7 +77,7 @@ A aplicação atual usa MySQL (Manus-hosted). Para migrar para Supabase PostgreS
 
 3. Configure a variável de ambiente:
    ```
-   DATABASE_URL=postgresql://postgres.wwqdcjvxbglczabhqowp:SUA_SENHA@aws-0-us-east-2.pooler.supabase.com:6543/postgres
+   DATABASE_URL=postgresql://postgres.SEU_PROJECT_ID:SUA_SENHA@aws-0-us-east-2.pooler.supabase.com:6543/postgres
    ```
 
 4. Execute as migrations:

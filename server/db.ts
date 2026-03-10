@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import {
   AlertConfig,
   AppSetting,
@@ -182,7 +182,7 @@ export async function recalculateAllProductPrices(margemPercent: number) {
 export async function createMonitoringRun(data: InsertMonitoringRun) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(monitoringRuns).values(data).$returningId();
+  const result = await db.insert(monitoringRuns).values(data).returning({ id: monitoringRuns.id });
   return result[0] ? { id: result[0].id } : null;
 }
 

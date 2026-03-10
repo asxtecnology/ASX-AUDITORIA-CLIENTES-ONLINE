@@ -91,8 +91,8 @@ pnpm check
 
 O banco de dados está configurado no Supabase:
 - **Projeto:** ASX AUDITORIA CLIENTES ONLINE
-- **Project ID:** `wwqdcjvxbglczabhqowp`
-- **URL:** `https://wwqdcjvxbglczabhqowp.supabase.co`
+- **Project ID:** `SEU_PROJECT_ID`
+- **URL:** `https://SEU_PROJECT_ID.supabase.co`
 
 Ver `SUPABASE_SETUP.md` para instruções completas de configuração.
 
