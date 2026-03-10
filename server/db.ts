@@ -36,16 +36,14 @@ let _db: any = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      const pool = mysql.createPool({
-        uri: process.env.DATABASE_URL,
-        // Reconexão automática após ECONNRESET / timeout do servidor
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 10000,
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
+      // postgres-js: reconexão automática com max_lifetime e idle_timeout
+      const client = postgres(process.env.DATABASE_URL, {
+        max: 10,
+        idle_timeout: 20,
+        max_lifetime: 1800,
+        connect_timeout: 10,
       });
-      _db = drizzle(pool);
+      _db = drizzle(client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

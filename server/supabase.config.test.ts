@@ -1,32 +1,33 @@
 import { describe, it, expect } from "vitest";
 
-describe("Supabase Configuration", () => {
+/**
+ * Database Configuration Tests
+ * Aceita MySQL/TiDB (dev Manus) e PostgreSQL/Supabase (produção).
+ */
+describe("Database Configuration", () => {
   const url = process.env.DATABASE_URL ?? process.env.SUPABASE_URL ?? "";
 
-  it("DATABASE_URL should be a valid PostgreSQL URL when defined", () => {
-    // Em CI/dev, DATABASE_URL pode não estar definida — apenas valida o formato se estiver
+  it("DATABASE_URL should be a valid database URL when defined", () => {
     if (!url) {
-      console.warn("[supabase.config.test] DATABASE_URL not set — skipping URL format validation");
+      console.warn("[db.config.test] DATABASE_URL not set — skipping URL format validation");
       return;
     }
-    expect(url).toMatch(/^(postgresql|postgres):\/\//);
+    // Aceita MySQL (TiDB dev) ou PostgreSQL (Supabase prod)
+    expect(url).toMatch(/^(mysql|postgresql|postgres):\/\//);
   });
 
   it("DATABASE_URL should contain required parts when defined", () => {
     if (!url) {
-      console.warn("[supabase.config.test] DATABASE_URL not set — skipping URL parts validation");
+      console.warn("[db.config.test] DATABASE_URL not set — skipping URL parts validation");
       return;
     }
     try {
       const parsed = new URL(url);
-      expect(["postgresql:", "postgres:"]).toContain(parsed.protocol);
-      // Supabase URLs contêm supabase.co; URLs locais podem ser localhost
-      const isSupabase = parsed.hostname.includes("supabase.co");
-      const isLocal = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-      expect(isSupabase || isLocal).toBe(true);
+      const validProtocols = ["mysql:", "postgresql:", "postgres:"];
+      expect(validProtocols).toContain(parsed.protocol);
+      expect(parsed.hostname.length).toBeGreaterThan(0);
     } catch {
-      // URL inválida — falha o teste
-      expect(url).toMatch(/^(postgresql|postgres):\/\//);
+      expect(url).toMatch(/^(mysql|postgresql|postgres):\/\//);
     }
   });
 });

@@ -83,8 +83,8 @@ export const monitoringRuns = pgTable("monitoring_runs", {
   productsFound: integer("productsFound").default(0),
   totalViolations: integer("totalViolations").default(0),
   errorMessage: text("errorMessage"),
-  triggeredBy: mysqlEnum("triggeredBy", ["scheduled", "manual"]).default("scheduled").notNull(),
-  slotHour: int("slotHour"), // 10 = turno manhã, 16 = turno tarde, null = manual
+  triggeredBy: triggeredByEnum("triggeredBy").default("scheduled").notNull(),
+  slotHour: integer("slotHour"), // 10 = turno manhã, 16 = turno tarde, null = manual
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
   clienteId: integer("clienteId"),
 });
@@ -188,7 +188,8 @@ export type AlertConfig = typeof alertConfigs.$inferSelect;
 export type InsertAlertConfig = typeof alertConfigs.$inferInsert;
 
 // ─── Mercado Livre OAuth Credentials ────────────────────────────────────────
-export const mlCredentials = mysqlTable("ml_credentials", {
+export const mlCredStatusEnum = pgEnum("ml_cred_status", ["pending", "authorized", "expired", "error"]);
+export const mlCredentials = pgTable("ml_credentials", {
   id: serial("id").primaryKey(),
   // Dados do App ML (obtidos em developers.mercadolivre.com.br)
   appId: varchar("appId", { length: 64 }).notNull(),
@@ -199,17 +200,17 @@ export const mlCredentials = mysqlTable("ml_credentials", {
   accessToken: text("accessToken"),
   refreshToken: text("refreshToken"),
   tokenType: varchar("tokenType", { length: 32 }).default("Bearer"),
-  expiresAt: datetime("expiresAt"), // quando o access_token expira
+  expiresAt: timestamp("expiresAt"), // quando o access_token expira
   scope: text("scope"), // escopos autorizados
   // Dados do usuário ML autenticado
   mlUserId: varchar("mlUserId", { length: 64 }), // ID numérico do usuário ML
   mlNickname: varchar("mlNickname", { length: 128 }), // nickname da conta ML
   mlEmail: varchar("mlEmail", { length: 320 }), // email da conta ML
   // Status
-  status: mysqlEnum("status", ["pending", "authorized", "expired", "error"]).default("pending").notNull(),
+  status: mlCredStatusEnum("status").default("pending").notNull(),
   lastError: text("lastError"),
-  createdAt: datetime("createdAt").notNull().$defaultFn(() => new Date()),
-  updatedAt: datetime("updatedAt").notNull().$defaultFn(() => new Date()),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
 export type MlCredential = typeof mlCredentials.$inferSelect;
 export type InsertMlCredential = typeof mlCredentials.$inferInsert;
