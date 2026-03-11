@@ -16,15 +16,17 @@ export const statusClienteEnum = pgEnum("status_cliente", ["ativo", "inativo"]);
 export const violationStatusEnum = pgEnum("violation_status", ["open", "notified", "resolved"]);
 export const monitoringStatusEnum = pgEnum("monitoring_status", ["running", "completed", "failed"]);
 export const triggeredByEnum = pgEnum("triggered_by", ["scheduled", "manual"]);
+export const mlCredStatusEnum = pgEnum("ml_cred_status", ["pending", "authorized", "expired", "error"]);
 
 // ─── Users (auth) ─────────────────────────────────────────────────────────────
+// Nota: users usa camelCase pois já existe no Supabase com esse formato
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: roleEnum("role").default("user").notNull(),
+  role: varchar("role", { length: 20 }).default("user").notNull(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   lastSignedIn: timestamp("lastSignedIn").notNull().defaultNow(),
@@ -33,17 +35,18 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 // ─── Clientes Monitorados ─────────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const clientes = pgTable("clientes", {
   id: serial("id").primaryKey(),
   nome: varchar("nome", { length: 255 }).notNull(),
-  sellerId: varchar("sellerId", { length: 64 }).notNull(),
-  lojaML: varchar("lojaML", { length: 255 }),
-  linkLoja: text("linkLoja"),
+  sellerId: varchar("seller_id", { length: 64 }).notNull(),
+  lojaML: varchar("loja_ml", { length: 255 }),
+  linkLoja: text("link_loja"),
   email: varchar("email", { length: 320 }),
-  status: statusClienteEnum("status").default("ativo").notNull(),
-  totalProdutos: integer("totalProdutos").default(0),
-  totalViolacoes: integer("totalViolacoes").default(0),
-  ultimaVerificacao: timestamp("ultimaVerificacao"),
+  status: varchar("status", { length: 20 }).default("ativo").notNull(),
+  totalProdutos: integer("total_produtos").default(0),
+  totalViolacoes: integer("total_violacoes").default(0),
+  ultimaVerificacao: timestamp("ultima_verificacao"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
@@ -51,6 +54,7 @@ export type Cliente = typeof clientes.$inferSelect;
 export type InsertCliente = typeof clientes.$inferInsert;
 
 // ─── Products (ASX Catalog) ───────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   codigo: varchar("codigo", { length: 32 }).notNull().unique(),
@@ -60,10 +64,10 @@ export const products = pgTable("products", {
   caixa: integer("caixa"),
   voltagem: varchar("voltagem", { length: 20 }),
   ncm: varchar("ncm", { length: 20 }),
-  precoCusto: decimal("precoCusto", { precision: 10, scale: 2 }).notNull(),
-  precoMinimo: decimal("precoMinimo", { precision: 10, scale: 2 }).notNull(),
-  margemPercent: decimal("margemPercent", { precision: 5, scale: 2 }).default("60.00").notNull(),
-  statusBase: varchar("statusBase", { length: 20 }).default("ATIVO"),
+  precoCusto: decimal("preco_custo", { precision: 10, scale: 2 }).notNull(),
+  precoMinimo: decimal("preco_minimo", { precision: 10, scale: 2 }).notNull(),
+  margemPercent: decimal("margem_percent", { precision: 5, scale: 2 }).default("60.00").notNull(),
+  statusBase: varchar("status_base", { length: 20 }).default("ATIVO"),
   categoria: varchar("categoria", { length: 64 }),
   linha: varchar("linha", { length: 20 }),
   ativo: boolean("ativo").default(true).notNull(),
@@ -74,148 +78,151 @@ export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 
 // ─── Monitoring Runs ──────────────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const monitoringRuns = pgTable("monitoring_runs", {
   id: serial("id").primaryKey(),
-  startedAt: timestamp("startedAt").notNull().defaultNow(),
-  finishedAt: timestamp("finishedAt"),
-  status: monitoringStatusEnum("status").default("running").notNull(),
-  totalFound: integer("totalFound").default(0),
-  productsFound: integer("productsFound").default(0),
-  totalViolations: integer("totalViolations").default(0),
-  errorMessage: text("errorMessage"),
-  triggeredBy: triggeredByEnum("triggeredBy").default("scheduled").notNull(),
-  slotHour: integer("slotHour"), // 10 = turno manhã, 16 = turno tarde, null = manual
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  finishedAt: timestamp("finished_at"),
+  status: varchar("status", { length: 20 }).default("running").notNull(),
+  totalFound: integer("total_products").default(0),
+  productsFound: integer("products_found").default(0),
+  totalViolations: integer("violations_found").default(0),
+  errorMessage: text("error_message"),
+  triggeredBy: varchar("triggered_by", { length: 20 }).default("scheduled").notNull(),
+  slotHour: integer("slot_hour"),
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
-  clienteId: integer("clienteId"),
+  clienteId: integer("cliente_id"),
 });
 export type MonitoringRun = typeof monitoringRuns.$inferSelect;
 export type InsertMonitoringRun = typeof monitoringRuns.$inferInsert;
 
 // ─── Price Snapshots ──────────────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const priceSnapshots = pgTable("price_snapshots", {
   id: serial("id").primaryKey(),
-  runId: integer("runId").notNull(),
-  productId: integer("productId").notNull(),
-  sellerName: varchar("sellerName", { length: 255 }).notNull(),
-  sellerId: varchar("sellerId", { length: 64 }),
-  clienteId: integer("clienteId"),
-  mlItemId: varchar("mlItemId", { length: 64 }),
-  mlTitle: text("mlTitle"),
-  mlUrl: text("mlUrl"),
-  mlThumbnail: text("mlThumbnail"),
+  runId: integer("run_id").notNull(),
+  productId: integer("product_id").notNull(),
+  sellerName: varchar("seller_name", { length: 255 }).notNull(),
+  sellerId: varchar("seller_id", { length: 64 }),
+  clienteId: integer("cliente_id"),
+  mlItemId: varchar("ml_item_id", { length: 64 }),
+  mlTitle: text("ml_title"),
+  mlUrl: text("ml_url"),
+  mlThumbnail: text("ml_thumbnail"),
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
-  precoAnunciado: decimal("precoAnunciado", { precision: 10, scale: 2 }).notNull(),
-  precoMinimo: decimal("precoMinimo", { precision: 10, scale: 2 }).notNull(),
-  isViolation: boolean("isViolation").default(false).notNull(),
-  validationReason: varchar("validationReason", { length: 255 }),
+  precoAnunciado: decimal("preco_anunciado", { precision: 10, scale: 2 }).notNull(),
+  precoMinimo: decimal("preco_minimo", { precision: 10, scale: 2 }).notNull(),
+  isViolation: boolean("is_violation").default(false).notNull(),
+  validationReason: varchar("validation_reason", { length: 255 }),
   confianca: integer("confianca").default(0),
-  metodoMatch: varchar("metodoMatch", { length: 64 }),
-  capturedAt: timestamp("capturedAt").notNull().defaultNow(),
+  metodoMatch: varchar("metodo_match", { length: 64 }),
+  capturedAt: timestamp("captured_at").notNull().defaultNow(),
 });
 export type PriceSnapshot = typeof priceSnapshots.$inferSelect;
 export type InsertPriceSnapshot = typeof priceSnapshots.$inferInsert;
 
 // ─── Violations ───────────────────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const violations = pgTable("violations", {
   id: serial("id").primaryKey(),
-  snapshotId: integer("snapshotId").notNull(),
-  runId: integer("runId").notNull(),
-  productId: integer("productId").notNull(),
-  sellerName: varchar("sellerName", { length: 255 }).notNull(),
-  sellerId: varchar("sellerId", { length: 64 }),
-  clienteId: integer("clienteId"),
-  mlItemId: varchar("mlItemId", { length: 64 }),
-  mlUrl: text("mlUrl"),
-  mlThumbnail: text("mlThumbnail"),
-  mlTitle: text("mlTitle"),
+  snapshotId: integer("snapshot_id").notNull(),
+  runId: integer("run_id").notNull(),
+  productId: integer("product_id").notNull(),
+  sellerName: varchar("seller_name", { length: 255 }).notNull(),
+  sellerId: varchar("seller_id", { length: 64 }),
+  clienteId: integer("cliente_id"),
+  mlItemId: varchar("ml_item_id", { length: 64 }),
+  mlUrl: text("ml_url"),
+  mlThumbnail: text("ml_thumbnail"),
+  mlTitle: text("ml_title"),
   plataforma: varchar("plataforma", { length: 32 }).default("mercadolivre"),
-  precoAnunciado: decimal("precoAnunciado", { precision: 10, scale: 2 }).notNull(),
-  precoMinimo: decimal("precoMinimo", { precision: 10, scale: 2 }).notNull(),
+  precoAnunciado: decimal("preco_anunciado", { precision: 10, scale: 2 }).notNull(),
+  precoMinimo: decimal("preco_minimo", { precision: 10, scale: 2 }).notNull(),
   diferenca: decimal("diferenca", { precision: 10, scale: 2 }).notNull(),
-  percentAbaixo: decimal("percentAbaixo", { precision: 5, scale: 2 }).notNull(),
+  percentAbaixo: decimal("percent_abaixo", { precision: 5, scale: 2 }).notNull(),
   confianca: integer("confianca").default(0),
-  metodoMatch: varchar("metodoMatch", { length: 64 }),
-  status: violationStatusEnum("status").default("open").notNull(),
-  notifiedAt: timestamp("notifiedAt"),
-  resolvedAt: timestamp("resolvedAt"),
-  resolvedBy: varchar("resolvedBy", { length: 255 }),
+  metodoMatch: varchar("metodo_match", { length: 64 }),
+  status: varchar("status", { length: 20 }).default("open").notNull(),
+  notifiedAt: timestamp("notified_at"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by", { length: 255 }),
   notes: text("notes"),
-  detectedAt: timestamp("detectedAt").notNull().defaultNow(),
+  detectedAt: timestamp("detected_at").notNull().defaultNow(),
 });
 export type Violation = typeof violations.$inferSelect;
 export type InsertViolation = typeof violations.$inferInsert;
 
 // ─── Histórico de Preços ──────────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const historicoPrecosTable = pgTable("historico_precos", {
   id: serial("id").primaryKey(),
-  codigoAsx: varchar("codigoAsx", { length: 32 }).notNull(),
+  codigoAsx: varchar("codigo_asx", { length: 32 }).notNull(),
   plataforma: varchar("plataforma", { length: 32 }).notNull().default("mercadolivre"),
   vendedor: varchar("vendedor", { length: 255 }).notNull(),
-  itemId: varchar("itemId", { length: 64 }),
+  itemId: varchar("item_id", { length: 64 }),
   preco: decimal("preco", { precision: 10, scale: 2 }).notNull(),
-  dataCaptura: varchar("dataCaptura", { length: 10 }).notNull(),
+  dataCaptura: varchar("data_captura", { length: 10 }).notNull(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 export type HistoricoPreco = typeof historicoPrecosTable.$inferSelect;
 export type InsertHistoricoPreco = typeof historicoPrecosTable.$inferInsert;
 
 // ─── Vendedores (ranking) ─────────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const vendedores = pgTable("vendedores", {
   id: serial("id").primaryKey(),
   plataforma: varchar("plataforma", { length: 32 }).notNull().default("mercadolivre"),
-  vendedorId: varchar("vendedorId", { length: 64 }),
+  vendedorId: varchar("vendedor_id", { length: 64 }),
   nome: varchar("nome", { length: 255 }).notNull(),
-  clienteId: integer("clienteId"),
-  totalViolacoes: integer("totalViolacoes").default(0),
-  totalAnuncios: integer("totalAnuncios").default(0),
-  primeiraVez: timestamp("primeiraVez"),
-  ultimaVez: timestamp("ultimaVez"),
+  clienteId: integer("cliente_id"),
+  totalViolacoes: integer("total_violacoes").default(0),
+  totalAnuncios: integer("total_anuncios").default(0),
+  primeiraVez: timestamp("primeira_vez"),
+  ultimaVez: timestamp("ultima_vez"),
 });
 export type Vendedor = typeof vendedores.$inferSelect;
 export type InsertVendedor = typeof vendedores.$inferInsert;
 
 // ─── Alert Configurations ─────────────────────────────────────────────────────
+// Alinhado ao Supabase: snake_case
 export const alertConfigs = pgTable("alert_configs", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 320 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   active: boolean("active").default(true).notNull(),
-  notifyOnViolation: boolean("notifyOnViolation").default(true).notNull(),
-  notifyOnRunComplete: boolean("notifyOnRunComplete").default(false).notNull(),
+  notifyOnViolation: boolean("notify_on_violation").default(true).notNull(),
+  notifyOnRunComplete: boolean("notify_on_run_complete").default(false).notNull(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 export type AlertConfig = typeof alertConfigs.$inferSelect;
 export type InsertAlertConfig = typeof alertConfigs.$inferInsert;
 
-// ─── Mercado Livre OAuth Credentials ────────────────────────────────────────
-export const mlCredStatusEnum = pgEnum("ml_cred_status", ["pending", "authorized", "expired", "error"]);
+// ─── Mercado Livre OAuth Credentials ─────────────────────────────────────────
+// Tabela nova — ainda não existe no Supabase, será criada via db:push
 export const mlCredentials = pgTable("ml_credentials", {
   id: serial("id").primaryKey(),
-  // Dados do App ML (obtidos em developers.mercadolivre.com.br)
-  appId: varchar("appId", { length: 64 }).notNull(),
-  clientSecret: varchar("clientSecret", { length: 128 }).notNull(),
-  siteId: varchar("siteId", { length: 8 }).default("MLB").notNull(), // MLB=Brasil, MLA=Argentina, MLM=México, MLE=Espanha
-  redirectUri: varchar("redirectUri", { length: 512 }),
-  // Tokens OAuth (preenchidos após autorização)
-  accessToken: text("accessToken"),
-  refreshToken: text("refreshToken"),
-  tokenType: varchar("tokenType", { length: 32 }).default("Bearer"),
-  expiresAt: timestamp("expiresAt"), // quando o access_token expira
-  scope: text("scope"), // escopos autorizados
-  // Dados do usuário ML autenticado
-  mlUserId: varchar("mlUserId", { length: 64 }), // ID numérico do usuário ML
-  mlNickname: varchar("mlNickname", { length: 128 }), // nickname da conta ML
-  mlEmail: varchar("mlEmail", { length: 320 }), // email da conta ML
-  // Status
-  status: mlCredStatusEnum("status").default("pending").notNull(),
-  lastError: text("lastError"),
-  createdAt: timestamp("createdAt").notNull().defaultNow(),
-  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  appId: varchar("app_id", { length: 64 }).notNull(),
+  clientSecret: varchar("client_secret", { length: 128 }).notNull(),
+  siteId: varchar("site_id", { length: 8 }).default("MLB").notNull(),
+  redirectUri: varchar("redirect_uri", { length: 512 }),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenType: varchar("token_type", { length: 32 }).default("Bearer"),
+  expiresAt: timestamp("expires_at"),
+  scope: text("scope"),
+  mlUserId: varchar("ml_user_id", { length: 64 }),
+  mlNickname: varchar("ml_nickname", { length: 128 }),
+  mlEmail: varchar("ml_email", { length: 320 }),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 export type MlCredential = typeof mlCredentials.$inferSelect;
 export type InsertMlCredential = typeof mlCredentials.$inferInsert;
 
 // ─── App Settings ─────────────────────────────────────────────────────────────
+// Nota: app_settings usa camelCase pois já existe no Supabase com esse formato
 export const appSettings = pgTable("app_settings", {
   id: serial("id").primaryKey(),
   key: varchar("key", { length: 64 }).notNull().unique(),

@@ -36,12 +36,15 @@ let _db: any = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      // postgres-js: reconexão automática com max_lifetime e idle_timeout
-      const client = postgres(process.env.DATABASE_URL, {
+      const dbUrl = process.env.DATABASE_URL;
+      // Supabase requer SSL; TiDB local não precisa
+      const isSupabase = dbUrl.includes("supabase.com") || dbUrl.includes("supabase.co");
+      const client = postgres(dbUrl, {
         max: 10,
         idle_timeout: 20,
         max_lifetime: 1800,
         connect_timeout: 10,
+        ssl: isSupabase ? "require" : false,
       });
       _db = drizzle(client);
     } catch (error) {
@@ -73,7 +76,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(values)
+    .onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -126,19 +130,21 @@ export async function getProductByCodigo(codigo: string) {
 export async function upsertProduct(product: InsertProduct) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(products).values(product).onDuplicateKeyUpdate({
-    set: {
-      descricao: product.descricao,
-      ean: product.ean,
-      categoria: product.categoria,
-      linha: product.linha,
-      ativo: product.ativo,
-      precoCusto: product.precoCusto,
-      precoMinimo: product.precoMinimo,
-      margemPercent: product.margemPercent,
-      updatedAt: new Date(),
-    },
-  });
+  await db.insert(products).values(product)
+    .onConflictDoUpdate({
+      target: products.codigo,
+      set: {
+        descricao: product.descricao,
+        ean: product.ean,
+        categoria: product.categoria,
+        linha: product.linha,
+        ativo: product.ativo,
+        precoCusto: product.precoCusto,
+        precoMinimo: product.precoMinimo,
+        margemPercent: product.margemPercent,
+        updatedAt: new Date(),
+      },
+    });
 }
 
 export async function updateProduct(id: number, data: Partial<InsertProduct>) {
@@ -160,17 +166,17 @@ export async function getActiveProducts(): Promise<Product[]> {
 }
 
 // ─── Recalcular precoMinimo de TODOS os produtos com nova margem ──────────────
-// Chamado quando o usuário muda margem_percent nas Configurações.
 // precoMinimo = precoCusto * (1 + margem / 100)
 export async function recalculateAllProductPrices(margemPercent: number) {
   const db = await getDb();
   if (!db) return { updated: 0 };
   const multiplier = 1 + margemPercent / 100;
+  // PostgreSQL: usa NUMERIC cast e NOW()
   await db.execute(
     sql`UPDATE products
-        SET precoMinimo   = ROUND(CAST(precoCusto AS DECIMAL(10,2)) * ${multiplier}, 2),
-            margemPercent = ${String(margemPercent)},
-            updatedAt     = NOW()`
+        SET preco_minimo   = ROUND(CAST(preco_custo AS NUMERIC(10,2)) * ${multiplier}, 2),
+            margem_percent = ${String(margemPercent)},
+            "updatedAt"    = NOW()`
   );
   const result = await db.select({ count: count() }).from(products);
   return { updated: Number(result[0]?.count ?? 0) };
@@ -305,22 +311,15 @@ export async function getViolationTrend(days = 30) {
   try {
     const countResult = await db.select({ count: count() }).from(violations);
     if (Number(countResult[0]?.count ?? 0) === 0) return [];
+    // PostgreSQL: DATE() funciona igual ao MySQL
     const rows = await db.execute(
-      sql`SELECT DATE(detectedAt) as date, COUNT(*) as cnt
+      sql`SELECT DATE(detected_at) as date, COUNT(*) as cnt
           FROM violations
-          WHERE detectedAt >= ${since}
-          GROUP BY DATE(detectedAt)
-          ORDER BY DATE(detectedAt)`
+          WHERE detected_at >= ${since}
+          GROUP BY DATE(detected_at)
+          ORDER BY DATE(detected_at)`
     );
-    // drizzle/mysql2 pode retornar tanto:
-    // - RowDataPacket[]
-    // - [RowDataPacket[], FieldPacket[]]
-    const results: any[] = Array.isArray(rows)
-      ? Array.isArray((rows as any)[0])
-        ? ((rows as any)[0] as any[])
-        : (rows as any[])
-      : [];
-
+    const results: any[] = Array.isArray(rows) ? rows as any[] : [];
     return results.map((r: any) => ({
       date: String(r.date),
       count: Number(r.cnt),
@@ -331,7 +330,7 @@ export async function getViolationTrend(days = 30) {
   }
 }
 
-// ─── Violation Trend por Slot (10h e 16h) ──────────────────────────────────────────────
+// ─── Violation Trend por Slot (10h e 16h) ────────────────────────────────────
 export async function getViolationTrendBySlot(days = 30) {
   const db = await getDb();
   if (!db) return { slot10: [], slot16: [] };
@@ -339,26 +338,22 @@ export async function getViolationTrendBySlot(days = 30) {
   since.setDate(since.getDate() - days);
   try {
     const rows = await db.execute(
-      sql`SELECT DATE(v.detectedAt) as date,
-                 mr.slotHour,
+      sql`SELECT DATE(v.detected_at) as date,
+                 mr.slot_hour,
                  COUNT(*) as cnt
           FROM violations v
-          LEFT JOIN monitoring_runs mr ON mr.id = v.runId
-          WHERE v.detectedAt >= ${since}
-          GROUP BY DATE(v.detectedAt), mr.slotHour
-          ORDER BY DATE(v.detectedAt)`
+          LEFT JOIN monitoring_runs mr ON mr.id = v.run_id
+          WHERE v.detected_at >= ${since}
+          GROUP BY DATE(v.detected_at), mr.slot_hour
+          ORDER BY DATE(v.detected_at)`
     );
-    const results: any[] = Array.isArray(rows)
-      ? Array.isArray((rows as any)[0])
-        ? ((rows as any)[0] as any[])
-        : (rows as any[])
-      : [];
+    const results: any[] = Array.isArray(rows) ? rows as any[] : [];
     const slot10: { date: string; count: number }[] = [];
     const slot16: { date: string; count: number }[] = [];
     for (const r of results) {
       const entry = { date: String(r.date), count: Number(r.cnt) };
-      if (Number(r.slotHour) === 10) slot10.push(entry);
-      else if (Number(r.slotHour) === 16) slot16.push(entry);
+      if (Number(r.slot_hour) === 10) slot10.push(entry);
+      else if (Number(r.slot_hour) === 16) slot16.push(entry);
     }
     return { slot10, slot16 };
   } catch (e) {
@@ -367,7 +362,7 @@ export async function getViolationTrendBySlot(days = 30) {
   }
 }
 
-// ─── Alert Configs ────────────────────────────────────────────────────────────────
+// ─── Alert Configs ────────────────────────────────────────────────────────────
 export async function getAlertConfigs(): Promise<AlertConfig[]> {
   const db = await getDb();
   if (!db) return [];
@@ -377,9 +372,11 @@ export async function getAlertConfigs(): Promise<AlertConfig[]> {
 export async function upsertAlertConfig(data: InsertAlertConfig) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(alertConfigs).values(data).onDuplicateKeyUpdate({
-    set: { name: data.name, active: data.active, notifyOnViolation: data.notifyOnViolation, notifyOnRunComplete: data.notifyOnRunComplete },
-  });
+  await db.insert(alertConfigs).values(data)
+    .onConflictDoUpdate({
+      target: alertConfigs.email,
+      set: { name: data.name, active: data.active, notifyOnViolation: data.notifyOnViolation, notifyOnRunComplete: data.notifyOnRunComplete },
+    });
 }
 
 export async function deleteAlertConfig(id: number) {
@@ -405,9 +402,11 @@ export async function getAllSettings(): Promise<AppSetting[]> {
 export async function upsertSetting(key: string, value: string, description?: string) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(appSettings).values({ key, value, description }).onDuplicateKeyUpdate({
-    set: { value, updatedAt: new Date() },
-  });
+  await db.insert(appSettings).values({ key, value, description })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value, updatedAt: new Date() },
+    });
 }
 
 export async function initDefaultSettings() {
@@ -442,16 +441,17 @@ export async function getClienteById(id: number) {
 export async function upsertCliente(data: InsertCliente) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(clientes).values(data).onDuplicateKeyUpdate({
-    set: {
-      nome: data.nome,
-      sellerId: data.sellerId,
-      lojaML: data.lojaML,
-      linkLoja: data.linkLoja,
-      status: data.status,
-      updatedAt: new Date(),
-    },
-  });
+  await db.insert(clientes).values(data)
+    .onConflictDoUpdate({
+      target: clientes.sellerId,
+      set: {
+        nome: data.nome,
+        lojaML: data.lojaML,
+        linkLoja: data.linkLoja,
+        status: data.status,
+        updatedAt: new Date(),
+      },
+    });
 }
 
 export async function deleteCliente(id: number) {
@@ -506,8 +506,7 @@ export async function getHistoricoPrecos(opts?: { codigoAsx?: string; vendedor?:
   return db.select().from(historicoPrecosTable).where(where).orderBy(desc(historicoPrecosTable.dataCaptura)).limit(500);
 }
 
-// ─── Mercado Livre OAuth Credentials ─────────────────────────────────────────────────────────────
-// Retorna as credenciais ML (sempre apenas 1 registro)
+// ─── Mercado Livre OAuth Credentials ─────────────────────────────────────────
 export async function getMlCredentials(): Promise<MlCredential | null> {
   const db = await getDb();
   if (!db) return null;
@@ -515,7 +514,6 @@ export async function getMlCredentials(): Promise<MlCredential | null> {
   return rows[0] ?? null;
 }
 
-// Salva (upsert) App ID e Client Secret
 export async function saveMlCredentials(
   data: Pick<InsertMlCredential, "appId" | "clientSecret" | "siteId" | "redirectUri">
 ): Promise<void> {
@@ -545,7 +543,6 @@ export async function saveMlCredentials(
   }
 }
 
-// Atualiza os tokens OAuth após autorização
 export async function updateMlTokens(
   data: Partial<Pick<MlCredential, "accessToken" | "refreshToken" | "tokenType" | "expiresAt" | "scope" | "mlUserId" | "mlNickname" | "mlEmail" | "status" | "lastError">>
 ): Promise<void> {
@@ -558,7 +555,6 @@ export async function updateMlTokens(
     .where(eq(mlCredentials.id, existing.id));
 }
 
-// Remove as credenciais ML
 export async function deleteMlCredentials(): Promise<void> {
   const db = await getDb();
   if (!db) return;
