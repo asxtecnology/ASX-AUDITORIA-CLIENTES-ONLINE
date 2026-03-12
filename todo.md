@@ -250,3 +250,10 @@
 - [x] Gerar docs/architecture-audit.md com análise completa
 - [x] Gerar docs/supabase-migrations.sql com índices, FKs e RLS comentado
 - [x] 24/24 testes passando, 0 erros TypeScript
+
+## Fix Crítico: Queries falhando (Unknown Message 97 / CONNECT_TIMEOUT)
+- [ ] Corrigir db.ts: suporte dual MySQL (TiDB dev) + PostgreSQL (Supabase prod)
+- [ ] Corrigir schema.ts: remover colunas camelCase (createdAt/updatedAt) incompatíveis com MySQL
+- [ ] Corrigir pnpm-lock.yaml para resolver Docker build failure
+- [ ] Validar queries no banco TiDB e no Supabase
+- [ ] 24/24 testes passando após correção

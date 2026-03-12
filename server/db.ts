@@ -1,6 +1,4 @@
 import { and, count, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
 import {
   AlertConfig,
   AppSetting,
@@ -30,14 +28,27 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _db: any = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  // Seleciona a URL correta: prioriza SUPABASE_URL quando DATABASE_URL for MySQL/TiDB
+  const rawUrl = process.env.DATABASE_URL ?? "";
+  const isMySQL = rawUrl.startsWith("mysql://") || rawUrl.includes("tidbcloud.com");
+  const effectiveUrl = isMySQL
+    ? (process.env.SUPABASE_URL ?? "")
+    : rawUrl;
+
+  if (!_db && effectiveUrl) {
     try {
-      const dbUrl = process.env.DATABASE_URL;
-      // Supabase requer SSL; TiDB local não precisa
+      const dbUrl = effectiveUrl;
+      if (!dbUrl || dbUrl.startsWith("mysql://")) {
+        console.warn("[Database] No PostgreSQL URL available. Set SUPABASE_URL with your Supabase connection string.");
+        return null;
+      }
       const isSupabase = dbUrl.includes("supabase.com") || dbUrl.includes("supabase.co");
       const client = postgres(dbUrl, {
         max: 10,
@@ -47,6 +58,7 @@ export async function getDb() {
         ssl: isSupabase ? "require" : false,
       });
       _db = drizzle(client);
+      console.log("[Database] Connected via postgres.js (PostgreSQL/Supabase)");
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
