@@ -146,7 +146,10 @@ export default function MercadoLivre() {
     if (code && !exchangeMutation.isPending) {
       // Usar sempre /ml como redirectUri (consistente com o que foi enviado ao ML)
       const redirectUriUsed = `${window.location.origin}/ml`;
-      exchangeMutation.mutate({ code, redirectUri: redirectUriUsed });
+      // Recuperar code_verifier do sessionStorage (PKCE)
+      const codeVerifier = sessionStorage.getItem("ml_code_verifier") || undefined;
+      sessionStorage.removeItem("ml_code_verifier"); // limpar após uso
+      exchangeMutation.mutate({ code, redirectUri: redirectUriUsed, codeVerifier });
     }
   }, []);
 
@@ -176,6 +179,10 @@ export default function MercadoLivre() {
 
   const handleAuthorize = () => {
     if (authUrlData?.authUrl) {
+      // Salvar code_verifier no sessionStorage antes do redirect (PKCE)
+      if (authUrlData.codeVerifier) {
+        sessionStorage.setItem("ml_code_verifier", authUrlData.codeVerifier);
+      }
       window.location.href = authUrlData.authUrl;
     }
   };

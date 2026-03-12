@@ -372,7 +372,7 @@ const mlRouter = router({
       return { ok: true };
     }),
 
-  // Gera a URL de autorização OAuth do ML para o usuário clicar
+  // Gera a URL de autorização OAuth do ML com suporte a PKCE (obrigatório quando pkce=true no App ML)
   getAuthUrl: protectedProcedure
     .input(z.object({ origin: z.string().url() }))
     .query(async ({ input }) => {
@@ -380,10 +380,30 @@ const mlRouter = router({
       if (!cred) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Configure o App ID e Client Secret primeiro." });
       }
-      // Usar o redirectUri salvo no banco; se não houver, usar origin + /ml (não /api/ml/callback)
+      // Usar o redirectUri salvo no banco; se não houver, usar origin + /ml
       const redirectUri = cred.redirectUri || `${input.origin}/ml`;
-      const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${cred.appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-      return { authUrl, redirectUri };
+
+      // Gerar PKCE code_verifier (43-128 chars, URL-safe base64)
+      const codeVerifierBytes = new Uint8Array(32);
+      crypto.getRandomValues(codeVerifierBytes);
+      const codeVerifier = Buffer.from(codeVerifierBytes)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=/g, "");
+
+      // Gerar code_challenge = BASE64URL(SHA-256(code_verifier))
+      const encoder = new TextEncoder();
+      const data = encoder.encode(codeVerifier);
+      const digest = await crypto.subtle.digest("SHA-256", data);
+      const codeChallenge = Buffer.from(digest)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=/g, "");
+
+      const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${cred.appId}&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+      return { authUrl, redirectUri, codeVerifier };
     }),
 
   // Testa a conexão com a API ML usando o token salvo
@@ -420,7 +440,11 @@ const mlRouter = router({
 
   // Troca o code pelo access_token (chamado após o callback OAuth)
   exchangeCode: protectedProcedure
-    .input(z.object({ code: z.string(), redirectUri: z.string().url() }))
+    .input(z.object({
+      code: z.string(),
+      redirectUri: z.string().url(),
+      codeVerifier: z.string().optional(), // PKCE: obrigatório quando o App ML tem pkce=true
+    }))
     .mutation(async ({ input, ctx }) => {
       if (ctx.user?.role !== "admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem autorizar credenciais ML." });
@@ -429,17 +453,23 @@ const mlRouter = router({
       if (!cred) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Configure o App ID e Client Secret primeiro." });
       }
+      // Montar body da troca de token (com ou sem PKCE)
+      const tokenBody: Record<string, string> = {
+        grant_type: "authorization_code",
+        client_id: cred.appId,
+        client_secret: cred.clientSecret,
+        code: input.code,
+        redirect_uri: input.redirectUri,
+      };
+      // Adicionar code_verifier se PKCE estiver sendo usado
+      if (input.codeVerifier) {
+        tokenBody.code_verifier = input.codeVerifier;
+      }
       // Trocar code por token
       const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          client_id: cred.appId,
-          client_secret: cred.clientSecret,
-          code: input.code,
-          redirect_uri: input.redirectUri,
-        }),
+        body: new URLSearchParams(tokenBody),
       });
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
