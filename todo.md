@@ -268,8 +268,8 @@
 - [ ] Configurar URL de redirecionamento no painel ML Developers
 
 ## PKCE OAuth ML (12/03/2026)
-- [ ] Backend: getAuthUrl gera code_verifier + code_challenge (SHA-256) e retorna ao frontend
-- [ ] Backend: exchangeCode aceita code_verifier e envia ao ML na troca do token
-- [ ] Frontend: armazenar code_verifier no sessionStorage antes do redirect
-- [ ] Frontend: recuperar code_verifier do sessionStorage no callback e enviar ao exchangeCode
-- [ ] Validar fluxo PKCE completo no ambiente de produção
+- [x] Backend: getAuthUrl gera code_verifier + code_challenge (SHA-256) e retorna ao frontend
+- [x] Backend: exchangeCode aceita code_verifier e envia ao ML na troca do token
+- [x] Frontend: armazenar code_verifier no sessionStorage antes do redirect
+- [x] Frontend: recuperar code_verifier do sessionStorage no callback e enviar ao exchangeCode
+- [ ] Validar fluxo PKCE completo no ambiente de produção (requer Publish)
