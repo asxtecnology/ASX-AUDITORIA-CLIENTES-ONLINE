@@ -380,10 +380,43 @@ const mlRouter = router({
       if (!cred) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Configure o App ID e Client Secret primeiro." });
       }
-      const redirectUri = cred.redirectUri || `${input.origin}/api/ml/callback`;
+      // Usar o redirectUri salvo no banco; se não houver, usar origin + /ml (não /api/ml/callback)
+      const redirectUri = cred.redirectUri || `${input.origin}/ml`;
       const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${cred.appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
       return { authUrl, redirectUri };
     }),
+
+  // Testa a conexão com a API ML usando o token salvo
+  testConnection: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem testar a conexão ML." });
+    }
+    const cred = await getMlCredentials();
+    if (!cred?.accessToken) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Nenhum token de acesso disponível. Autorize primeiro." });
+    }
+    // Testar token com endpoint /users/me
+    const res = await fetch("https://api.mercadolibre.com/users/me", {
+      headers: { Authorization: `Bearer ${cred.accessToken}` },
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      // Se expirado, marcar no banco
+      if (res.status === 401) {
+        await updateMlTokens({ status: "expired", lastError: "Token expirado. Use Renovar Token." });
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Token expirado. Clique em Renovar Token." });
+      }
+      throw new TRPCError({ code: "BAD_REQUEST", message: `Erro na API ML: ${errText}` });
+    }
+    const userData = await res.json() as { id: number; nickname: string; email: string; site_id: string };
+    return {
+      ok: true,
+      userId: userData.id,
+      nickname: userData.nickname,
+      email: userData.email,
+      siteId: userData.site_id,
+    };
+  }),
 
   // Troca o code pelo access_token (chamado após o callback OAuth)
   exchangeCode: protectedProcedure

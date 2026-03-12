@@ -22,6 +22,10 @@ import {
   User,
   Globe,
   Info,
+  Wifi,
+  WifiOff,
+  Copy,
+  ArrowRight,
 } from "lucide-react";
 
 const SITE_OPTIONS = [
@@ -82,12 +86,16 @@ export default function MercadoLivre() {
     { enabled: !!cred && cred.status !== "authorized" }
   );
 
+  // Redirect URI que será usado — sempre consistente com o banco
+  const effectiveRedirectUri = authUrlData?.redirectUri || `${window.location.origin}/ml`;
+
   const saveMutation = trpc.ml.saveCredentials.useMutation({
     onSuccess: () => {
       toast.success("Credenciais salvas com sucesso!");
       utils.ml.getCredentials.invalidate();
+      utils.ml.getAuthUrl.invalidate();
       setIsEditing(false);
-      setClientSecret(""); // limpar campo sensível após salvar
+      setClientSecret("");
     },
     onError: (err) => toast.error(`Erro ao salvar: ${err.message}`),
   });
@@ -111,12 +119,19 @@ export default function MercadoLivre() {
     onError: (err) => toast.error(`Erro ao remover: ${err.message}`),
   });
 
+  const testMutation = trpc.ml.testConnection.useMutation({
+    onSuccess: (data) => {
+      toast.success(`✅ Conexão OK! Conta: ${data.nickname} (${data.email}) — Site: ${data.siteId}`);
+      utils.ml.getCredentials.invalidate();
+    },
+    onError: (err) => toast.error(`❌ Falha na conexão: ${err.message}`),
+  });
+
   // Verificar se voltou do OAuth ML com um code na URL
   const exchangeMutation = trpc.ml.exchangeCode.useMutation({
     onSuccess: (data) => {
-      toast.success(`Conta ML autorizada: ${data.mlNickname} (${data.mlEmail})`);
+      toast.success(`🎉 Conta ML autorizada: ${data.mlNickname} (${data.mlEmail})`);
       utils.ml.getCredentials.invalidate();
-      // Limpar o code da URL
       window.history.replaceState({}, "", window.location.pathname);
     },
     onError: (err) => {
@@ -129,6 +144,7 @@ export default function MercadoLivre() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     if (code && !exchangeMutation.isPending) {
+      // Usar sempre /ml como redirectUri (consistente com o que foi enviado ao ML)
       const redirectUriUsed = `${window.location.origin}/ml`;
       exchangeMutation.mutate({ code, redirectUri: redirectUriUsed });
     }
@@ -140,11 +156,9 @@ export default function MercadoLivre() {
       setAppId(cred.appId || "");
       setSiteId(cred.siteId || "MLB");
       setRedirectUri(cred.redirectUri || "");
-      // Não preencher clientSecret por segurança
     }
   }, [isEditing, cred]);
 
-  // Se não há credenciais, mostrar formulário de configuração inicial
   const showForm = !cred || isEditing;
 
   const handleSave = () => {
@@ -164,6 +178,10 @@ export default function MercadoLivre() {
     if (authUrlData?.authUrl) {
       window.location.href = authUrlData.authUrl;
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => toast.success("Copiado!"));
   };
 
   if (isLoading) {
@@ -188,7 +206,7 @@ export default function MercadoLivre() {
         </p>
       </div>
 
-      {/* Alerta de callback OAuth */}
+      {/* Alerta de callback OAuth em andamento */}
       {exchangeMutation.isPending && (
         <Alert className="border-blue-500/40 bg-blue-500/10">
           <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
@@ -252,31 +270,57 @@ export default function MercadoLivre() {
             {cred.lastError && (
               <Alert variant="destructive" className="py-2">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-xs">{cred.lastError}</AlertDescription>
+                <AlertDescription className="text-xs font-mono">{cred.lastError}</AlertDescription>
               </Alert>
             )}
 
             {/* Ações */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-2 pt-1">
               {cred.status !== "authorized" && (
                 <Button
                   onClick={handleAuthorize}
                   disabled={!authUrlData?.authUrl}
-                  className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black"
+                  className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
                 >
                   <ExternalLink className="h-4 w-4" />
                   Autorizar no Mercado Livre
                 </Button>
               )}
               {cred.status === "authorized" && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => testMutation.mutate()}
+                    disabled={testMutation.isPending}
+                    className="gap-2 text-green-400 border-green-400/30 hover:border-green-400/60"
+                  >
+                    {testMutation.isPending ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wifi className="h-4 w-4" />
+                    )}
+                    Testar Conexão
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => refreshMutation.mutate()}
+                    disabled={refreshMutation.isPending}
+                    className="gap-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+                    Renovar Token
+                  </Button>
+                </>
+              )}
+              {cred.status === "expired" && (
                 <Button
                   variant="outline"
                   onClick={() => refreshMutation.mutate()}
                   disabled={refreshMutation.isPending}
-                  className="gap-2"
+                  className="gap-2 text-orange-400 border-orange-400/30 hover:border-orange-400/60"
                 >
                   <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
-                  Renovar Token
+                  Renovar Token Expirado
                 </Button>
               )}
               <Button variant="outline" onClick={() => setIsEditing(true)} className="gap-2">
@@ -297,6 +341,31 @@ export default function MercadoLivre() {
                 Remover
               </Button>
             </div>
+
+            {/* Aviso de URL de redirect para autorização pendente */}
+            {cred.status !== "authorized" && (
+              <Alert className="border-yellow-500/30 bg-yellow-500/5 py-3">
+                <AlertTriangle className="h-4 w-4 text-yellow-400" />
+                <AlertDescription className="text-xs text-yellow-200 space-y-2">
+                  <p><strong>Antes de autorizar</strong>, confirme que a URL abaixo está cadastrada no seu App ML em{" "}
+                    <a href="https://developers.mercadolivre.com.br" target="_blank" rel="noopener noreferrer" className="underline">
+                      developers.mercadolivre.com.br
+                    </a>:
+                  </p>
+                  <div className="flex items-center gap-2 bg-black/30 rounded px-2 py-1.5">
+                    <code className="flex-1 text-yellow-300 text-xs break-all">{effectiveRedirectUri}</code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-yellow-400 hover:text-yellow-300"
+                      onClick={() => copyToClipboard(effectiveRedirectUri)}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
           </CardContent>
         </Card>
       )}
@@ -328,7 +397,7 @@ export default function MercadoLivre() {
                 <Label htmlFor="appId">App ID *</Label>
                 <Input
                   id="appId"
-                  placeholder="Ex: 1234567890123456"
+                  placeholder="Ex: 3464765781004451"
                   value={appId}
                   onChange={(e) => setAppId(e.target.value)}
                   className="font-mono"
@@ -379,12 +448,19 @@ export default function MercadoLivre() {
 
             <Alert className="border-blue-500/40 bg-blue-500/10 py-3">
               <Info className="h-4 w-4 text-blue-400" />
-              <AlertDescription className="text-xs text-blue-200">
-                <strong>URL de Redirect:</strong> No painel do seu App ML em{" "}
-                <a href="https://developers.mercadolivre.com.br" target="_blank" rel="noopener noreferrer" className="underline">
-                  developers.mercadolivre.com.br
-                </a>
-                , adicione <code className="bg-blue-900/40 px-1 rounded">{window.location.origin}/ml</code> como URL de redirecionamento autorizada.
+              <AlertDescription className="text-xs text-blue-200 space-y-1">
+                <p><strong>URL de Redirect obrigatória no painel ML:</strong></p>
+                <div className="flex items-center gap-2 bg-black/30 rounded px-2 py-1.5">
+                  <code className="flex-1 text-blue-300 text-xs break-all">{window.location.origin}/ml</code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-blue-400 hover:text-blue-300"
+                    onClick={() => copyToClipboard(`${window.location.origin}/ml`)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
               </AlertDescription>
             </Alert>
 
@@ -392,7 +468,7 @@ export default function MercadoLivre() {
               <Button
                 onClick={handleSave}
                 disabled={saveMutation.isPending || !appId.trim() || (!clientSecret.trim() && !cred)}
-                className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black"
+                className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
               >
                 {saveMutation.isPending ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
@@ -420,43 +496,59 @@ export default function MercadoLivre() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ol className="space-y-4 text-sm">
+          <ol className="space-y-5 text-sm">
             <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-xs font-bold">1</span>
-              <div>
-                <p className="font-medium">Crie um App no ML Developers</p>
-                <p className="text-muted-foreground mt-0.5">
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-xs font-bold">1</span>
+              <div className="space-y-1">
+                <p className="font-medium">Adicione a URL de redirect no painel ML Developers</p>
+                <p className="text-muted-foreground">
                   Acesse{" "}
                   <a
-                    href="https://developers.mercadolivre.com.br/pt_br/crie-seu-aplicativo"
+                    href="https://developers.mercadolivre.com.br"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-yellow-400 hover:underline inline-flex items-center gap-1"
                   >
-                    developers.mercadolivre.com.br
-                    <ExternalLink className="h-3 w-3" />
-                  </a>{" "}
-                  e crie um novo aplicativo. Adicione{" "}
-                  <code className="bg-muted px-1 rounded text-xs">{window.location.origin}/ml</code> como URL de redirecionamento.
+                    developers.mercadolivre.com.br <ExternalLink className="h-3 w-3" />
+                  </a>
+                  , abra seu App e adicione esta URL em <strong>"URLs de redirecionamento"</strong>:
                 </p>
+                <div className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5 mt-1">
+                  <code className="flex-1 text-yellow-300 text-xs break-all">{window.location.origin}/ml</code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => copyToClipboard(`${window.location.origin}/ml`)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </li>
             <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-xs font-bold">2</span>
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-xs font-bold">2</span>
               <div>
                 <p className="font-medium">Cole o App ID e Client Secret acima</p>
                 <p className="text-muted-foreground mt-0.5">
-                  Copie o <strong>App ID</strong> e o <strong>Client Secret</strong> gerados no painel do seu App ML e cole nos campos acima. Selecione o país correto (Brasil = MLB).
+                  Copie o <strong>App ID</strong> e o <strong>Client Secret</strong> do painel do seu App ML e cole nos campos do formulário acima. Selecione o país correto (Brasil = MLB).
                 </p>
               </div>
             </li>
             <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-xs font-bold">3</span>
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-xs font-bold">3</span>
               <div>
-                <p className="font-medium">Autorize a conta ASX no Mercado Livre</p>
+                <p className="font-medium">Clique em "Autorizar no Mercado Livre"</p>
                 <p className="text-muted-foreground mt-0.5">
-                  Clique em <strong>"Autorizar no Mercado Livre"</strong> e faça login com a conta ASX. O sistema receberá o token de acesso automaticamente e estará pronto para monitorar anúncios via API oficial.
+                  Você será redirecionado para o ML para aprovar o acesso. Após aprovar, o sistema recebe o token automaticamente e fica pronto para monitorar anúncios via API oficial (600 req/min).
                 </p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                  <WifiOff className="h-3 w-3 text-yellow-400" />
+                  <span>API pública: 60 req/min</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <Wifi className="h-3 w-3 text-green-400" />
+                  <span className="text-green-400 font-medium">API autorizada: 600 req/min</span>
+                </div>
               </div>
             </li>
           </ol>
