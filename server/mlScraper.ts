@@ -465,9 +465,9 @@ export async function runScraper(
         clienteId: options.clienteId ?? null,
         plataforma: "mercadolivre",
       })
-      .$returningId();
+      .returning({ id: monitoringRuns.id });
 
-    const runId = Number((runInsert as any)?.[0]?.id);
+    const runId = Number(runInsert?.[0]?.id);
     if (!Number.isFinite(runId) || runId <= 0) throw new Error("Falha ao criar registro da execução");
 
     console.log(`[Scraper v4] runId=${runId}`);
