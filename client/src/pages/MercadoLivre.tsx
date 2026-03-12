@@ -81,9 +81,9 @@ export default function MercadoLivre() {
 
   const utils = trpc.useUtils();
   const { data: cred, isLoading } = trpc.ml.getCredentials.useQuery();
-  const { data: authUrlData } = trpc.ml.getAuthUrl.useQuery(
+  const { data: authUrlData, error: authUrlError, isLoading: authUrlLoading } = trpc.ml.getAuthUrl.useQuery(
     { origin: window.location.origin },
-    { enabled: !!cred && cred.status !== "authorized" }
+    { enabled: !!cred && cred.status !== "authorized", retry: 2 }
   );
 
   // Redirect URI que será usado — sempre consistente com o banco
@@ -284,14 +284,21 @@ export default function MercadoLivre() {
             {/* Ações */}
             <div className="flex flex-wrap gap-2 pt-1">
               {cred.status !== "authorized" && (
-                <Button
-                  onClick={handleAuthorize}
-                  disabled={!authUrlData?.authUrl}
-                  className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Autorizar no Mercado Livre
-                </Button>
+                <>
+                  <Button
+                    onClick={handleAuthorize}
+                    disabled={!authUrlData?.authUrl || authUrlLoading}
+                    className="gap-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {authUrlLoading ? "Carregando..." : "Autorizar no Mercado Livre"}
+                  </Button>
+                  {authUrlError && (
+                    <p className="text-xs text-red-400 mt-1">
+                      Erro ao gerar URL de autorização: {authUrlError.message}. Verifique a conexão com o banco de dados.
+                    </p>
+                  )}
+                </>
               )}
               {cred.status === "authorized" && (
                 <>

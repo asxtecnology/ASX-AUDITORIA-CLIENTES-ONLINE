@@ -273,3 +273,8 @@
 - [x] Frontend: armazenar code_verifier no sessionStorage antes do redirect
 - [x] Frontend: recuperar code_verifier do sessionStorage no callback e enviar ao exchangeCode
 - [ ] Validar fluxo PKCE completo no ambiente de produção (requer Publish)
+
+## Bug: Botão "Autorizar no Mercado Livre" não redireciona (12/03/2026)
+- [x] Diagnosticar: SUPABASE_URL não estava configurado em produção → queries falhavam → botão disabled
+- [x] Corrigir: SUPABASE_URL configurado como secret, UI mostra erro ao invés de silenciar
+- [ ] Validar fluxo completo em produção (requer Publish)
