@@ -348,6 +348,7 @@ export async function getViolationTrendBySlot(days = 30) {
   if (!db) return { slot10: [], slot16: [] };
   const since = new Date();
   since.setDate(since.getDate() - days);
+  const sinceIso = since.toISOString(); // postgres.js espera string, não Date em sql raw
   try {
     const rows = await db.execute(
       sql`SELECT DATE(v.detected_at) as date,
@@ -355,7 +356,7 @@ export async function getViolationTrendBySlot(days = 30) {
                  COUNT(*) as cnt
           FROM violations v
           LEFT JOIN monitoring_runs mr ON mr.id = v.run_id
-          WHERE v.detected_at >= ${since}
+          WHERE v.detected_at >= ${sinceIso}::timestamptz
           GROUP BY DATE(v.detected_at), mr.slot_hour
           ORDER BY DATE(v.detected_at)`
     );

@@ -252,8 +252,17 @@
 - [x] 24/24 testes passando, 0 erros TypeScript
 
 ## Fix Crítico: Queries falhando (Unknown Message 97 / CONNECT_TIMEOUT)
-- [ ] Corrigir db.ts: suporte dual MySQL (TiDB dev) + PostgreSQL (Supabase prod)
-- [ ] Corrigir schema.ts: remover colunas camelCase (createdAt/updatedAt) incompatíveis com MySQL
-- [ ] Corrigir pnpm-lock.yaml para resolver Docker build failure
-- [ ] Validar queries no banco TiDB e no Supabase
-- [ ] 24/24 testes passando após correção
+- [x] Corrigir db.ts: suporte dual MySQL (TiDB dev) + PostgreSQL (Supabase prod)
+- [x] Schema.ts usa pgTable (PostgreSQL) — compatível com Supabase
+- [x] Corrigir pnpm-lock.yaml para resolver Docker build failure
+- [x] Validar queries no banco Supabase (products, violations, monitoring_runs: OK)
+- [x] 24/24 testes passando após correção
+
+## Configuração ML + Supabase (12/03/2026)
+- [x] SUPABASE_URL configurado no ambiente (projeto qmmgureyatsgjafjlrxe)
+- [x] ML_APP_ID: 3464765781004451 configurado
+- [x] ML_CLIENT_SECRET configurado
+- [x] Credenciais ML inseridas no banco Supabase (redirect_uri: /ml)
+- [x] Servidor conectado ao Supabase PostgreSQL com sucesso
+- [ ] Publicar app e completar fluxo OAuth do ML em produção
+- [ ] Configurar URL de redirecionamento no painel ML Developers
