@@ -269,9 +269,39 @@ const PRODUCT_LINES = [
   "ULTRA LED",
   "SUPER LED",
   "WORKLIGHT",
+  "FAROL DE MILHA",
+  "WORK LIGHT",
   "XENON",
   "ECO PLUGIN",
 ];
+
+// Product TYPE classification — items of different types should never cross-match
+type ProductType = "HEADLIGHT" | "PINGO" | "WORKLIGHT" | "XENON" | "UNKNOWN";
+
+function detectProductType(text: string): ProductType {
+  const upper = text.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Pingo / small indicator lamps — check first (T10/T5 appear in CONNECTOR_PATTERNS too)
+  if (/\bPINGO\b/.test(upper) || /\bT10\b/.test(upper) || /\bT5\b/.test(upper) || /\bT15\b/.test(upper)) return "PINGO";
+  // Work lights
+  if (/\bWORKLIGHT\b/.test(upper) || /\bWORK\s*LIGHT\b/.test(upper) || /\bFAROL\s*DE\s*MILHA\b/.test(upper)) return "WORKLIGHT";
+  // Xenon kits
+  if (/\bXENON\b/.test(upper)) return "XENON";
+  // Headlights (Ultra LED, Super LED, etc.)
+  if (/\bULTRA\s*LED\b/.test(upper) || /\bSUPER\s*LED\b/.test(upper) || /\bECO\s*PLUGIN\b/.test(upper)) return "HEADLIGHT";
+  return "UNKNOWN";
+}
+
+// Find the most common connector variant among candidates (conservative pick)
+function pickMostCommonConnector(candidates: CatalogItem[]): CatalogItem {
+  // Preferred connectors in order (most commonly sold headlight connectors)
+  const PREFERRED = ["H4", "H7", "H1", "H3", "H11", "HB4", "HB3", "H8", "H9"];
+  for (const pref of PREFERRED) {
+    const found = candidates.find((p) => new RegExp(`\\b${pref}\\b`).test(p.descricao.toUpperCase()));
+    if (found) return found;
+  }
+  // Fallback: lowest precoMinimo
+  return candidates.reduce((a, b) => Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b);
+}
 
 // Extrai potência: "70W", "70 W" → "70"
 function extractWattage(title: string): string | null {
@@ -316,24 +346,31 @@ export function matchProduct(
   );
   const foundWattage   = extractWattage(titleUpper);
   const foundLumens    = extractLumens(titleUpper);
+  const titleType      = detectProductType(titleUpper);
 
   function wattageMatches(descricao: string): boolean {
     if (!foundWattage) return true;
     return new RegExp(`\\b${foundWattage}\\s*W\\b`).test(descricao.toUpperCase());
   }
 
+  // Filter catalog to same product type when type is known (not UNKNOWN)
+  function typeMatches(descricao: string): boolean {
+    if (titleType === "UNKNOWN") return true;
+    return detectProductType(descricao) === titleType;
+  }
+
   // ── 2. Linha + Conector + Potência → confiança 95 ──
   if (foundLine && foundConnector) {
     const match = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
-      return d.includes(foundLine) && new RegExp(`\\b${foundConnector}\\b`).test(d) && wattageMatches(d);
+      return d.includes(foundLine) && new RegExp(`\\b${foundConnector}\\b`).test(d) && wattageMatches(d) && typeMatches(p.descricao);
     });
     if (match) return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 95, metodoMatch: "linha_bulbo_watts" };
 
     // Sem potência
     const matchNoW = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
-      return d.includes(foundLine) && new RegExp(`\\b${foundConnector}\\b`).test(d);
+      return d.includes(foundLine) && new RegExp(`\\b${foundConnector}\\b`).test(d) && typeMatches(p.descricao);
     });
     if (matchNoW) return { productId: matchNoW.id, codigo: matchNoW.codigo, descricao: matchNoW.descricao, precoMinimo: Number(matchNoW.precoMinimo), confianca: 85, metodoMatch: "linha_bulbo" };
   }
@@ -342,7 +379,7 @@ export function matchProduct(
   if (foundConnector && foundWattage) {
     const match = catalog.find((p) => {
       const d = p.descricao.toUpperCase();
-      return new RegExp(`\\b${foundConnector}\\b`).test(d) && wattageMatches(d);
+      return new RegExp(`\\b${foundConnector}\\b`).test(d) && wattageMatches(d) && typeMatches(p.descricao);
     });
     if (match) return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 80, metodoMatch: "bulbo_watts" };
   }
@@ -350,33 +387,30 @@ export function matchProduct(
   // ── 4. Apenas conector → confiança 70 ──
   if (foundConnector) {
     const match = catalog.find((p) =>
-      new RegExp(`\\b${foundConnector}\\b`).test(p.descricao.toUpperCase())
+      new RegExp(`\\b${foundConnector}\\b`).test(p.descricao.toUpperCase()) && typeMatches(p.descricao)
     );
     if (match) return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 70, metodoMatch: "bulbo" };
   }
 
   // ── 5. Linha + Potência (ex: "Ultra Led Asx 70w") → confiança 65 ──
-  // Usa o produto de menor precoMinimo da família (mais conservador)
+  // Picks the most common connector variant (H4/H7) instead of lowest price — more conservative
   if (foundLine && foundWattage) {
     const candidates = catalog.filter((p) => {
       const d = p.descricao.toUpperCase();
-      return d.includes(foundLine) && wattageMatches(d);
+      return d.includes(foundLine) && wattageMatches(d) && typeMatches(p.descricao);
     });
     if (candidates.length > 0) {
-      const match = candidates.reduce((a, b) =>
-        Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
-      );
+      const match = pickMostCommonConnector(candidates);
       return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 65, metodoMatch: "linha_watts" };
     }
   }
 
   // ── 6. Potência + Lumens (sem conector explícito) → confiança 60 ──
+  // Also requires product type to match to avoid cross-type false positives
   if (foundWattage && foundLumens) {
-    const candidates = catalog.filter((p) => wattageMatches(p.descricao));
+    const candidates = catalog.filter((p) => wattageMatches(p.descricao) && typeMatches(p.descricao));
     if (candidates.length > 0) {
-      const match = candidates.reduce((a, b) =>
-        Number(a.precoMinimo) <= Number(b.precoMinimo) ? a : b
-      );
+      const match = pickMostCommonConnector(candidates);
       return { productId: match.id, codigo: match.codigo, descricao: match.descricao, precoMinimo: Number(match.precoMinimo), confianca: 60, metodoMatch: "watts_lumens" };
     }
   }
@@ -417,24 +451,60 @@ async function scrapeStorePage(
       $card.find(".ui-search-item__title").text().trim();
     if (!title) return;
 
-    // Extrair preço: fração (parte inteira) + centavos separadamente
-    const fractionText = $card.find(".andes-money-amount__fraction").first().text().trim()
-      || $card.find(".poly-price__current .andes-money-amount__fraction").first().text().trim();
-    const centsText = $card.find(".andes-money-amount__cents").first().text().trim();
+    // Extrair preço: capturar TODOS os preços do card e usar o menor (Pix/desconto)
+    const allPrices: number[] = [];
 
-    let price = 0;
-    if (fractionText) {
-      const intPart = parseFloat(fractionText.replace(/\./g, "").replace(",", "."));
-      const centsPart = centsText ? parseFloat(centsText) / 100 : 0;
-      price = intPart + centsPart;
-    } else {
-      // Fallback: tentar extrair do texto completo do bloco de preço
-      const priceText = $card.find(".poly-price__current").first().text().trim();
-      const priceMatch = priceText.replace(/\./g, "").match(/(\d+),?(\d{0,2})/);
-      if (priceMatch) {
-        price = parseFloat(priceMatch[1] + "." + (priceMatch[2] || "0"));
+    // 1) Parse all .andes-money-amount elements, skip previous/strikethrough
+    $card.find(".andes-money-amount").each((_, maEl) => {
+      const $ma = $(maEl);
+      if ($ma.closest(".andes-money-amount--previous").length > 0) return;
+      if ($ma.closest("[class*='price--previous']").length > 0) return;
+      if ($ma.closest("[class*='original-price']").length > 0) return;
+
+      const fracText = $ma.find(".andes-money-amount__fraction").first().text().trim();
+      const cntText = $ma.find(".andes-money-amount__cents").first().text().trim();
+      if (!fracText) return;
+      const intPart = parseFloat(fracText.replace(/\./g, "").replace(",", "."));
+      const centsPart = cntText ? parseFloat(cntText) / 100 : 0;
+      const val = intPart + centsPart;
+      if (!isNaN(val) && val > 0) allPrices.push(val);
+    });
+
+    // 2) Look for Pix/discount text with embedded price (e.g., "R$ 160,20 no Pix")
+    $card.find("[class*='price'], [class*='discount'], [class*='pix'], [class*='Pix']").each((_, el) => {
+      const txt = $(el).text() || "";
+      if (/pix|off/i.test(txt)) {
+        const m = txt.replace(/\./g, "").match(/R\$\s*(\d+),(\d{1,2})/);
+        if (m) {
+          const val = parseFloat(m[1]) + parseFloat(m[2]) / 100;
+          if (!isNaN(val) && val > 0) allPrices.push(val);
+        }
+      }
+    });
+
+    // 3) Fallback: original logic using first fraction/cents or full price text
+    if (allPrices.length === 0) {
+      const fractionText = $card.find(".andes-money-amount__fraction").first().text().trim()
+        || $card.find(".poly-price__current .andes-money-amount__fraction").first().text().trim();
+      const centsText = $card.find(".andes-money-amount__cents").first().text().trim();
+
+      if (fractionText) {
+        const intPart = parseFloat(fractionText.replace(/\./g, "").replace(",", "."));
+        const centsPart = centsText ? parseFloat(centsText) / 100 : 0;
+        const val = intPart + centsPart;
+        if (!isNaN(val) && val > 0) allPrices.push(val);
+      } else {
+        const priceText = $card.find(".poly-price__current").first().text().trim();
+        const priceMatch = priceText.replace(/\./g, "").match(/(\d+),?(\d{0,2})/);
+        if (priceMatch) {
+          const val = parseFloat(priceMatch[1] + "." + (priceMatch[2] || "0"));
+          if (!isNaN(val) && val > 0) allPrices.push(val);
+        }
       }
     }
+
+    // Use the LOWEST price (Pix/discount price is what customers actually pay)
+    const price = allPrices.length > 0 ? Math.min(...allPrices) : 0;
     if (!price || isNaN(price)) return;
 
     const href = $card.find("a[href]").first().attr("href") || "";
