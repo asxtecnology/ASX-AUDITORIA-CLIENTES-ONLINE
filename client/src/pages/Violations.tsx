@@ -161,6 +161,17 @@ export default function Violations() {
                           <div>
                             <p className="font-semibold text-foreground text-xs">{p?.codigo ?? "—"}</p>
                             <p className="text-xs text-muted-foreground truncate max-w-[200px]">{v.mlTitle ?? p?.descricao ?? "—"}</p>
+                            {v.mlUrl && (
+                              <a
+                                href={v.mlUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 hover:underline mt-0.5"
+                              >
+                                <ExternalLink className="h-2.5 w-2.5" />
+                                Ver no Mercado Livre
+                              </a>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3">
