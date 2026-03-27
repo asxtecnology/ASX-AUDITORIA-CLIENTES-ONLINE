@@ -38,8 +38,12 @@ function detectChromePath(): string {
   } else if (process.platform === "darwin") {
     return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   }
-  // Linux fallback
-  return "/usr/bin/chromium-browser";
+  // Linux fallback — try multiple paths
+  const linuxPaths = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"];
+  for (const p of linuxPaths) {
+    try { require("fs").accessSync(p); return p; } catch { /* next */ }
+  }
+  return "/usr/bin/chromium";
 }
 
 async function getBrowser(): Promise<Browser> {
