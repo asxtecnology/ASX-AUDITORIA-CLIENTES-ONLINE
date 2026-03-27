@@ -22,12 +22,16 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function Violations() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const limit = 20;
 
+  const { data: clientesList } = trpc.clientes.list.useQuery();
+
   const { data, refetch } = trpc.violations.list.useQuery({
     status: statusFilter !== "all" ? (statusFilter as "open" | "notified" | "resolved") : undefined,
+    clienteId: clienteFilter !== "all" ? parseInt(clienteFilter) : undefined,
     limit,
     offset,
   });
@@ -53,11 +57,12 @@ export default function Violations() {
 
   const handleExportCSV = () => {
     if (!data?.items.length) return;
-    const headers = ["ID", "Produto", "Vendedor", "Preço Anunciado", "Preço Mínimo", "Diferença", "%Abaixo", "Status", "Detectado", "URL"];
+    const headers = ["ID", "Produto", "Vendedor", "Preço Anunciado", "Preço Mínimo", "Diferença", "%Abaixo", "Confiança", "Método Match", "Status", "Detectado", "URL"];
     const rows = data.items.map(({ v, p }) => [
       v.id, p?.codigo ?? "", v.sellerName,
       v.precoAnunciado, v.precoMinimo, v.diferenca, v.percentAbaixo,
-      v.status, new Date(v.detectedAt).toLocaleString("pt-BR"), v.mlUrl ?? "",
+      v.confianca ?? 0, v.metodoMatch ?? "", v.status,
+      new Date(v.detectedAt).toLocaleString("pt-BR"), v.mlUrl ?? "",
     ]);
     const csv = [headers, ...rows].map((r) => r.join(";")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -100,7 +105,7 @@ export default function Violations() {
                 className="pl-9 bg-background border-border"
               />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setOffset(0); }}>
                 <SelectTrigger className="w-40 bg-background border-border">
@@ -111,6 +116,17 @@ export default function Violations() {
                   <SelectItem value="open">Abertas</SelectItem>
                   <SelectItem value="notified">Notificadas</SelectItem>
                   <SelectItem value="resolved">Resolvidas</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={clienteFilter} onValueChange={(v) => { setClienteFilter(v); setOffset(0); }}>
+                <SelectTrigger className="w-48 bg-background border-border">
+                  <SelectValue placeholder="Todos os clientes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os clientes</SelectItem>
+                  {(clientesList ?? []).map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -132,6 +148,7 @@ export default function Violations() {
                       <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">Anunciado</th>
                       <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">Mínimo</th>
                       <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">Diferença</th>
+                      <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground">Confiança</th>
                       <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
                       <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Detectado</th>
                       <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground">Ações</th>
@@ -161,6 +178,21 @@ export default function Violations() {
                             <span className="text-orange-400 font-medium text-xs">-{formatCurrency(v.diferenca ?? "0")}</span>
                             <span className="text-orange-400/70 text-xs">({parseFloat(String(v.percentAbaixo ?? 0)).toFixed(1)}%)</span>
                           </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {(() => {
+                            const conf = v.confianca ?? 0;
+                            const color = conf >= 90 ? "text-green-400" : conf >= 70 ? "text-yellow-400" : "text-red-400";
+                            const bg = conf >= 90 ? "bg-green-500/20" : conf >= 70 ? "bg-yellow-500/20" : "bg-red-500/20";
+                            return (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className={`text-xs font-bold ${color}`}>{conf}%</span>
+                                <div className="w-10 h-1.5 rounded-full bg-zinc-700 overflow-hidden">
+                                  <div className={`h-full rounded-full ${bg}`} style={{ width: `${conf}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <StatusBadge status={v.status} />

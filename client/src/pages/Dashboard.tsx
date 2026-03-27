@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertTriangle, BarChart3, CheckCircle, Clock, Package, Play,
-  RefreshCw, ShieldAlert, TrendingDown, TrendingUp, WifiOff,
+  RefreshCw, ShieldAlert, TrendingDown, TrendingUp, Users, WifiOff,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell,
+  ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
 } from "recharts";
 
 function StatusBadge({ status }: { status: string }) {
@@ -86,6 +86,7 @@ export default function Dashboard() {
     refetch: refetchViolations,
   } = trpc.violations.list.useQuery({ status: "open", limit: 8, offset: 0 });
   const { data: products } = trpc.products.list.useQuery({ limit: 1, offset: 0 });
+  const { data: clientesList } = trpc.clientes.list.useQuery();
 
   const runNow = trpc.monitoring.runNow.useMutation({
     onSuccess: (data) => {
@@ -112,13 +113,27 @@ export default function Dashboard() {
     violations: t.count,
   }));
 
+  const activeClientes = (clientesList ?? []).filter((c: any) => c.status === "ativo");
+  const clientesWithViolations = activeClientes.filter((c: any) => (c.totalViolacoes ?? 0) > 0);
+
   const kpis = [
     { title: "Violações Abertas", value: stats?.open ?? 0, icon: ShieldAlert, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
     { title: "Total de Violações", value: stats?.total ?? 0, icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" },
     { title: "Detectadas Hoje", value: stats?.todayCount ?? 0, icon: TrendingDown, color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
     { title: "Resolvidas", value: stats?.resolved ?? 0, icon: CheckCircle, color: "text-green-400", bg: "bg-green-500/10", border: "border-green-500/20" },
+    { title: "Clientes Monitorados", value: activeClientes.length, icon: Users, color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/20" },
     { title: "Produtos no Catálogo", value: products?.total ?? 0, icon: Package, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
   ];
+
+  const PIE_COLORS = ["#f97316", "#3b82f6", "#22c55e", "#a855f7", "#ec4899", "#eab308", "#06b6d4", "#ef4444", "#84cc16", "#6366f1"];
+  const clientePieData = activeClientes
+    .map((c: any, i: number) => ({
+      name: c.nome?.length > 15 ? c.nome.slice(0, 15) + "..." : c.nome,
+      value: c.totalViolacoes ?? 0,
+      fill: PIE_COLORS[i % PIE_COLORS.length],
+    }))
+    .filter((d: any) => d.value > 0)
+    .sort((a: any, b: any) => b.value - a.value);
 
   return (
     <div className="space-y-6">
@@ -162,7 +177,7 @@ export default function Dashboard() {
           onRetry={() => refetchStats()}
         />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {statsLoading
             ? Array.from({ length: 5 }).map((_, i) => <KpiSkeleton key={i} />)
             : kpis.map((kpi) => (
@@ -181,8 +196,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Charts Row — Tendência Geral */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Charts Row — Tendência Geral + Pizza */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Trend Chart Geral */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
@@ -254,6 +269,59 @@ export default function Dashboard() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Violações por Cliente (Pie) */}
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4 text-cyan-400" />
+              Violações por Cliente
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {clientePieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={clientePieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={80}
+                    dataKey="value"
+                    stroke="oklch(0.17 0.015 250)"
+                    strokeWidth={2}
+                  >
+                    {clientePieData.map((entry: any, i: number) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: "oklch(0.17 0.015 250)", border: "1px solid oklch(0.25 0.015 250)", borderRadius: "8px", color: "oklch(0.95 0.01 250)" }}
+                    formatter={(value: number, name: string) => [`${value} violações`, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
+                Nenhuma violação por cliente ainda.
+              </div>
+            )}
+            {clientePieData.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {clientePieData.slice(0, 5).map((d: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.fill }} />
+                      <span className="text-muted-foreground">{d.name}</span>
+                    </div>
+                    <span className="font-medium text-foreground">{d.value}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
