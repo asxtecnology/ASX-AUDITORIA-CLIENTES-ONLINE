@@ -24,7 +24,9 @@ const BROWSER_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
 function detectChromePath(): string {
   const envPath = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
-  if (envPath) return envPath;
+  if (envPath) {
+    try { require("fs").accessSync(envPath); return envPath; } catch { /* continue */ }
+  }
 
   if (process.platform === "win32") {
     const paths = [
@@ -38,11 +40,45 @@ function detectChromePath(): string {
   } else if (process.platform === "darwin") {
     return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   }
-  // Linux fallback — try multiple paths
-  const linuxPaths = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"];
+
+  // Linux/Nix — search common paths + Nix store
+  const linuxPaths = [
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+  ];
+
+  // Search Nix store for chromium binary
+  try {
+    const fs = require("fs");
+    const nixProfileBin = "/nix/var/nix/profiles/default/bin";
+    if (fs.existsSync(nixProfileBin)) {
+      const entries = fs.readdirSync(nixProfileBin);
+      const chromium = entries.find((e: string) => e.includes("chromium"));
+      if (chromium) linuxPaths.unshift(`${nixProfileBin}/${chromium}`);
+    }
+    // Also check /root/.nix-profile/bin
+    const homeNix = `${process.env.HOME || "/root"}/.nix-profile/bin`;
+    if (fs.existsSync(homeNix)) {
+      const entries = fs.readdirSync(homeNix);
+      const chromium = entries.find((e: string) => e.includes("chromium"));
+      if (chromium) linuxPaths.unshift(`${homeNix}/${chromium}`);
+    }
+  } catch { /* ignore nix search errors */ }
+
   for (const p of linuxPaths) {
-    try { require("fs").accessSync(p); return p; } catch { /* next */ }
+    try { require("fs").accessSync(p); console.log(`[Puppeteer] Found browser at: ${p}`); return p; } catch { /* next */ }
   }
+
+  // Last resort: try `which chromium` via child_process
+  try {
+    const { execSync } = require("child_process");
+    const result = execSync("which chromium || which chromium-browser || which google-chrome 2>/dev/null", { encoding: "utf-8" }).trim();
+    if (result) { console.log(`[Puppeteer] Found browser via which: ${result}`); return result; }
+  } catch { /* ignore */ }
+
+  console.warn("[Puppeteer] No browser found! Set CHROME_PATH or PUPPETEER_EXECUTABLE_PATH");
   return "/usr/bin/chromium";
 }
 
