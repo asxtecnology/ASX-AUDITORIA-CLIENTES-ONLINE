@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 360px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #18181b; color: #e4e4e7; }
+    .header { background: #27272a; padding: 12px 16px; border-bottom: 1px solid #3f3f46; display: flex; align-items: center; gap: 8px; }
+    .header h1 { font-size: 14px; font-weight: 600; color: #fbbf24; }
+    .header .version { font-size: 10px; color: #71717a; }
+    .content { padding: 16px; }
+    .status { padding: 8px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 12px; }
+    .status.ok { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+    .status.error { background: #450a0a; border: 1px solid #991b1b; color: #f87171; }
+    .status.idle { background: #1c1917; border: 1px solid #44403c; color: #a8a29e; }
+    .config-group { margin-bottom: 12px; }
+    .config-group label { display: block; font-size: 11px; color: #a1a1aa; margin-bottom: 4px; }
+    .config-group input { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #3f3f46; background: #27272a; color: #e4e4e7; font-size: 12px; outline: none; }
+    .config-group input:focus { border-color: #fbbf24; }
+    .btn { width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 8px; transition: background 0.2s; }
+    .btn-primary { background: #fbbf24; color: #18181b; }
+    .btn-primary:hover { background: #f59e0b; }
+    .btn-primary:disabled { background: #44403c; color: #71717a; cursor: not-allowed; }
+    .btn-secondary { background: #27272a; color: #e4e4e7; border: 1px solid #3f3f46; }
+    .btn-secondary:hover { background: #3f3f46; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .stat { background: #27272a; border-radius: 8px; padding: 8px; text-align: center; }
+    .stat .value { font-size: 18px; font-weight: 700; color: #fbbf24; }
+    .stat .label { font-size: 10px; color: #71717a; margin-top: 2px; }
+    .log { background: #0f0f0f; border-radius: 8px; padding: 8px; max-height: 120px; overflow-y: auto; font-size: 10px; font-family: monospace; color: #a1a1aa; border: 1px solid #27272a; }
+    .log .entry { padding: 2px 0; border-bottom: 1px solid #1c1c1e; }
+    .log .entry.error { color: #f87171; }
+    .log .entry.success { color: #4ade80; }
+    .section-title { font-size: 11px; font-weight: 600; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>ASX Collector</h1>
+    <span class="version">v1.0.0</span>
+  </div>
+  <div class="content">
+    <div id="status" class="status idle">Nao configurado</div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="value" id="collected">0</div>
+        <div class="label">Coletados</div>
+      </div>
+      <div class="stat">
+        <div class="value" id="sent">0</div>
+        <div class="label">Enviados</div>
+      </div>
+    </div>
+
+    <button id="collectBtn" class="btn btn-primary" disabled>Coletar Anuncios desta Pagina</button>
+    <button id="sendBtn" class="btn btn-secondary" disabled>Enviar ao Servidor</button>
+
+    <div class="section-title">Configuracoes</div>
+    <div class="config-group">
+      <label>URL do Servidor</label>
+      <input type="text" id="serverUrl" placeholder="https://seuservidor.com">
+    </div>
+    <div class="config-group">
+      <label>API Key</label>
+      <input type="text" id="apiKey" placeholder="asx-ingest-2026">
+    </div>
+    <button id="saveConfig" class="btn btn-secondary">Salvar Configuracao</button>
+
+    <div class="section-title">Log</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

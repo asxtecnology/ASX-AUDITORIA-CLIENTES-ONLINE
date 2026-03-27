@@ -183,6 +183,53 @@ async function startServer() {
     }
   });
 
+  // ─── Download da Extensão Chrome ASX Collector ──────────────────────────────
+  app.get("/api/extension/download", async (_req, res) => {
+    try {
+      const path = await import("path");
+      const fs = await import("fs");
+      const { createReadStream, readdirSync, statSync } = fs;
+      const archiver = await import("archiver").catch(() => null);
+
+      const extDir = path.join(__dirname, "..", "asx-collector-extension");
+
+      // Check if extension directory exists
+      if (!fs.existsSync(extDir)) {
+        return res.status(404).json({ error: "Extensão não encontrada no servidor." });
+      }
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", "attachment; filename=asx-collector-extension.zip");
+
+      if (archiver) {
+        // Use archiver if available
+        const archive = archiver.default("zip", { zlib: { level: 9 } });
+        archive.pipe(res);
+        archive.directory(extDir, false);
+        await archive.finalize();
+      } else {
+        // Fallback: serve files as a simple JSON manifest for manual download
+        const files: Record<string, string> = {};
+        const entries = readdirSync(extDir);
+        for (const entry of entries) {
+          const filePath = path.join(extDir, entry);
+          if (statSync(filePath).isFile() && !entry.endsWith(".svg")) {
+            files[entry] = fs.readFileSync(filePath, "utf-8");
+          }
+        }
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", "attachment; filename=asx-collector-extension.json");
+        return res.json({
+          instructions: "Crie uma pasta, salve cada arquivo abaixo com o nome indicado, depois carregue no Chrome.",
+          files,
+        });
+      }
+    } catch (err: any) {
+      console.error("[Extension Download] Error:", err.message);
+      return res.status(500).json({ error: "Erro ao gerar download da extensão." });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

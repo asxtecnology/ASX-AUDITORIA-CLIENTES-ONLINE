@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "ASX Collector",
+  "version": "1.0.0",
+  "description": "Coleta anuncios ASX do Mercado Livre e envia ao servidor de monitoramento de precos.",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": ["https://*.mercadolivre.com.br/*", "https://*.mercadolibre.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ASX Collector"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.mercadolivre.com.br/*",
+        "https://lista.mercadolivre.com.br/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {}
+}

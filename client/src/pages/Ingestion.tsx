@@ -176,17 +176,9 @@ export default function Ingestion() {
                   <span>Clique em <strong>Carregar sem compactação</strong> e selecione a pasta extraída do ZIP</span>
                 </div>
                 <a
-                  href="/api/ingest/status"
-                  target="_blank"
+                  href="/api/extension/download"
+                  download="asx-collector-extension.zip"
                   className="inline-flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    // Trigger download of the extension zip
-                    const link = document.createElement("a");
-                    link.href = "data:text/plain,Download the extension from the server";
-                    link.download = "asx-collector-extension.zip";
-                    alert("Para baixar a extensão, acesse o painel de Código do projeto e faça download do arquivo asx-collector-extension.zip");
-                  }}
                 >
                   <Download className="h-4 w-4" />
                   Baixar Extensão (.zip)
