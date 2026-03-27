@@ -26,8 +26,11 @@ export async function createContext(
 ): Promise<TrpcContext> {
   // ✅ Segurança: em PRODUÇÃO nunca use um usuário hardcoded.
   // ✅ Dev UX: em desenvolvimento, se não houver sessão válida, usamos um fallback.
+  // Allow auth bypass when OAuth is not configured (no VITE_APP_ID)
+  // or explicitly enabled via ALLOW_AUTH_BYPASS=1
+  const oauthConfigured = !!process.env.VITE_APP_ID && !!process.env.OAUTH_SERVER_URL;
   const allowDevBypass =
-    process.env.NODE_ENV !== "production" &&
+    (process.env.ALLOW_AUTH_BYPASS === "1" || !oauthConfigured) &&
     process.env.DISABLE_DEV_AUTH_BYPASS !== "1" &&
     process.env.DISABLE_DEV_AUTH_BYPASS !== "true";
 
