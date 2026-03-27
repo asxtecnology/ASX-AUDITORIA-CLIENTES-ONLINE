@@ -219,53 +219,73 @@ export async function scrapeSellerStore(
   sellerName: string
 ): Promise<ScrapedItem[]> {
   const allItems: ScrapedItem[] = [];
+  const seenIds = new Set<string>();
 
-  // Strategy 1: Scrape store page directly (no search query)
-  try {
-    const storeUrl = `https://www.mercadolivre.com.br/loja/${sellerNickname}`;
-    const items = await scrapePage(storeUrl);
-    const asxItems = items
-      .filter((i) => i.title.toUpperCase().includes("ASX"))
-      .map((i) => ({ ...i, sellerId, sellerName }));
-    allItems.push(...asxItems);
-  } catch (err) {
-    console.error(`[puppeteerScraper] Strategy 1 failed for ${sellerName}:`, err);
+  function addItems(items: ScrapedItem[]) {
+    for (const item of items) {
+      if (!item.title.toUpperCase().includes("ASX")) continue;
+      const key = item.itemId || item.url || item.title;
+      if (seenIds.has(key)) continue;
+      seenIds.add(key);
+      allItems.push({ ...item, sellerId, sellerName });
+    }
   }
 
-  // Strategy 2: Search for ASX products in the store
-  if (allItems.length === 0) {
+  // Strategy 1: CustId search (most reliable — works even when store URL changes)
+  if (sellerId) {
+    const queries = ["asx", "ultra led asx", "led asx", "lampada asx"];
+    for (const q of queries) {
+      try {
+        const custUrl = `https://lista.mercadolivre.com.br/${q.replace(/ /g, "-")}_CustId_${sellerId}_NoIndex_True`;
+        console.log(`[puppeteerScraper] Strategy CustId: ${custUrl}`);
+        const items = await scrapePage(custUrl);
+        addItems(items);
+        if (items.length > 0) {
+          console.log(`[puppeteerScraper] CustId "${q}": ${items.length} items for ${sellerName}`);
+        }
+      } catch (err: any) {
+        console.error(`[puppeteerScraper] CustId "${q}" failed for ${sellerName}:`, err.message);
+      }
+    }
+  }
+
+  // Strategy 2: Store page search (if CustId found few results)
+  if (allItems.length < 10 && sellerNickname) {
     try {
-      const searchUrl = `https://www.mercadolivre.com.br/loja/${sellerNickname}/search?q=asx+led`;
+      const searchUrl = `https://www.mercadolivre.com.br/loja/${sellerNickname}/search?q=asx`;
+      console.log(`[puppeteerScraper] Strategy Store Search: ${searchUrl}`);
       const items = await scrapePage(searchUrl);
-      const asxItems = items
-        .filter((i) => i.title.toUpperCase().includes("ASX"))
-        .map((i) => ({ ...i, sellerId, sellerName }));
-      allItems.push(...asxItems);
-    } catch (err) {
-      console.error(`[puppeteerScraper] Strategy 2 failed for ${sellerName}:`, err);
+      addItems(items);
+      console.log(`[puppeteerScraper] Store search: ${items.length} items for ${sellerName}`);
+    } catch (err: any) {
+      console.error(`[puppeteerScraper] Store search failed for ${sellerName}:`, err.message);
     }
   }
 
-  // Strategy 3: Use CustId URL format
-  if (allItems.length === 0 && sellerId) {
+  // Strategy 3: Pagina do vendedor (new ML URL format)
+  if (allItems.length < 10 && sellerNickname) {
     try {
-      const custUrl = `https://lista.mercadolivre.com.br/asx_CustId_${sellerId}`;
-      const items = await scrapePage(custUrl);
-      const asxItems = items
-        .filter((i) => i.title.toUpperCase().includes("ASX"))
-        .map((i) => ({ ...i, sellerId, sellerName }));
-      allItems.push(...asxItems);
-    } catch (err) {
-      console.error(`[puppeteerScraper] Strategy 3 failed for ${sellerName}:`, err);
+      const pageUrl = `https://www.mercadolivre.com.br/pagina/${sellerNickname}`;
+      console.log(`[puppeteerScraper] Strategy Pagina: ${pageUrl}`);
+      const items = await scrapePage(pageUrl);
+      addItems(items);
+    } catch (err: any) {
+      console.error(`[puppeteerScraper] Pagina failed for ${sellerName}:`, err.message);
     }
   }
 
-  // Deduplicate by URL
-  const seen = new Set<string>();
-  return allItems.filter((item) => {
-    const key = item.url || item.title;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Strategy 4: Global search with seller filter (catches listings not in store page)
+  if (allItems.length < 5 && sellerId) {
+    try {
+      const globalUrl = `https://lista.mercadolivre.com.br/asx-ultra-led_CustId_${sellerId}`;
+      console.log(`[puppeteerScraper] Strategy Global: ${globalUrl}`);
+      const items = await scrapePage(globalUrl);
+      addItems(items);
+    } catch (err: any) {
+      console.error(`[puppeteerScraper] Global search failed for ${sellerName}:`, err.message);
+    }
+  }
+
+  console.log(`[puppeteerScraper] Total for ${sellerName}: ${allItems.length} unique ASX items`);
+  return allItems;
 }
