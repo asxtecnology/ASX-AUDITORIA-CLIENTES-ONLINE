@@ -2,10 +2,13 @@
 
 ## O que e este projeto
 
-Sistema de monitoramento automatico de precos de produtos ASX no Mercado Livre. Detecta violacoes de preco minimo (custo + 60% de margem) praticadas por revendedores/distribuidores. O sistema coleta anuncios via pipeline de ingestao externa, faz matching com o catalogo ASX (423 SKUs), rastreia anuncios conhecidos e gera alertas quando precos estao abaixo do minimo permitido.
+Sistema de monitoramento automatico de precos de produtos ASX no Mercado Livre. Detecta violacoes de preco minimo (custo + 60% de margem) praticadas por revendedores/distribuidores. O sistema coleta anuncios via Puppeteer headless (Chromium), faz matching com o catalogo ASX (392 SKUs), rastreia anuncios conhecidos e gera alertas quando precos estao abaixo do minimo permitido.
 
 **Proprietario:** ASX Tecnology
 **Repositorio:** github.com/asxtecnology/ASX-AUDITORIA-CLIENTES-ONLINE
+**Deploy:** https://meticulous-upliftment-production.up.railway.app
+**Railway:** https://railway.com/project/9ebfe180-dcd6-49e1-8eef-7917e08f6016
+**Supabase:** https://supabase.com/dashboard/project/twxqhonyyojvnpmxeyca
 
 ---
 
@@ -240,20 +243,48 @@ pnpm format      # Prettier
 
 ---
 
+## Deploy (Producao)
+
+| Item | Valor |
+|------|-------|
+| Plataforma | Railway (Dockerfile) |
+| URL | https://meticulous-upliftment-production.up.railway.app |
+| Banco | Supabase PostgreSQL (twxqhonyyojvnpmxeyca) |
+| Conexao | Pooler aws-1-us-east-1.pooler.supabase.com:5432 |
+| Container | node:22-slim + Chromium (Puppeteer) |
+| Auth | Bypass admin (sem Manus OAuth) |
+| Scheduler | 10h e 16h BRT automatico |
+| Deploy cmd | `railway up --detach` |
+
+---
+
+## Estado Atual (2026-03-27)
+
+- **392 produtos** no catalogo (tabela Fev/2026)
+- **9 revendedores** monitorados (6 com dados coletados)
+- **150 anuncios** encontrados por execucao
+- **38 violacoes** detectadas
+- **37/37 testes** passando, 0 erros TypeScript
+- Scraper: Puppeteer headless com 5 estrategias + paginacao
+- Preco: captura preco Pix (menor real), filtra parcelas
+- Matching: por tipo de produto (PINGO, WORKLIGHT, HEADLIGHT, XENON)
+
+---
+
 ## Problemas Conhecidos
 
-### Seguranca
-- Algumas procedures tRPC usam `protectedProcedure` onde deveriam usar `adminProcedure`
-- Rate limiting in-memory nao funciona com multiplas instancias
-- Validacao de API key sem rate limiting
-
-### Performance
-- Indices faltantes em colunas frequentemente consultadas (violations.detectedAt, violations.sellerId)
-- Queries raw SQL em getViolationTrend
+### Cobertura
+- 3/9 revendedores com 0 produtos (IMPERIAL LEDS, LIDER SOM, PLANETA DO CARBURADOR) — ML pode bloquear ou lojas sem ASX
+- EXTREME AUDIO so 1 produto encontrado — precisa mais estrategias de busca
 
 ### Arquitetura
-- routers.ts monolitico (~529 linhas) — deveria ser dividido em sub-routers
+- routers.ts monolitico (~970 linhas) — deveria ser dividido em sub-routers
 - Foreign keys nao declaradas no Drizzle schema (.references())
+- Auth bypass hardcoded (DEV_USER) — implementar auth real para producao
+
+### Performance
+- Queries raw SQL em getViolationTrend
+- Scraping sequencial (1 revendedor por vez) — poderia paralelizar
 
 ---
 
@@ -266,3 +297,4 @@ pnpm format      # Prettier
 5. **Pipeline de Ingestao** — Coleta externa via extensao Chrome + endpoint REST
 6. **Tracked Listings** — Maquina de estados para monitoramento continuo
 7. **Match Review Queue** — Revisao manual de matches com baixa confianca
+8. **v2.0 (2026-03-27)** — 9 bugs corrigidos, deploy Railway, Dockerfile com Chromium, preco Pix, paginacao, matching por tipo, 18 indices, dashboard melhorado (pizza por cliente, KPI clientes, coluna confianca)
