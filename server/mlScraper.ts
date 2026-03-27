@@ -451,15 +451,25 @@ async function scrapeStorePage(
       $card.find(".ui-search-item__title").text().trim();
     if (!title) return;
 
-    // Extrair preço: capturar TODOS os preços do card e usar o menor (Pix/desconto)
-    const allPrices: number[] = [];
+    // Helper: check if element is inside installment context
+    const isInstallment = ($el: any): boolean => {
+      if ($el.closest("[class*='installment'], [class*='second-line'], [class*='parcela']").length > 0) return true;
+      const parentText = $el.parent().text() || "";
+      if (/\dx\s*R?\$|sem juros|parcela/i.test(parentText)) return true;
+      return false;
+    };
 
-    // 1) Parse all .andes-money-amount elements, skip previous/strikethrough
+    let mainPrice = 0;
+    let pixPrice = 0;
+
+    // 1) Get primary price — first .andes-money-amount NOT in previous/installment
     $card.find(".andes-money-amount").each((_, maEl) => {
+      if (mainPrice > 0) return; // already found
       const $ma = $(maEl);
       if ($ma.closest(".andes-money-amount--previous").length > 0) return;
       if ($ma.closest("[class*='price--previous']").length > 0) return;
       if ($ma.closest("[class*='original-price']").length > 0) return;
+      if (isInstallment($ma)) return;
 
       const fracText = $ma.find(".andes-money-amount__fraction").first().text().trim();
       const cntText = $ma.find(".andes-money-amount__cents").first().text().trim();
@@ -467,44 +477,44 @@ async function scrapeStorePage(
       const intPart = parseFloat(fracText.replace(/\./g, "").replace(",", "."));
       const centsPart = cntText ? parseFloat(cntText) / 100 : 0;
       const val = intPart + centsPart;
-      if (!isNaN(val) && val > 0) allPrices.push(val);
+      if (!isNaN(val) && val > 0) mainPrice = val;
     });
 
-    // 2) Look for Pix/discount text with embedded price (e.g., "R$ 160,20 no Pix")
+    // 2) Look for Pix/discount price
     $card.find("[class*='price'], [class*='discount'], [class*='pix'], [class*='Pix']").each((_, el) => {
-      const txt = $(el).text() || "";
+      if (pixPrice > 0) return;
+      const $el = $(el);
+      if (isInstallment($el)) return;
+      const txt = $el.text() || "";
       if (/pix|off/i.test(txt)) {
-        const m = txt.replace(/\./g, "").match(/R\$\s*(\d+),(\d{1,2})/);
+        const m = txt.replace(/\./g, "").match(/R\$\s*(\d+),?(\d{0,2})/);
         if (m) {
-          const val = parseFloat(m[1]) + parseFloat(m[2]) / 100;
-          if (!isNaN(val) && val > 0) allPrices.push(val);
+          const val = parseFloat(m[1]) + (m[2] ? parseFloat(m[2]) / 100 : 0);
+          if (!isNaN(val) && val > 50) pixPrice = val;
         }
       }
     });
 
-    // 3) Fallback: original logic using first fraction/cents or full price text
-    if (allPrices.length === 0) {
-      const fractionText = $card.find(".andes-money-amount__fraction").first().text().trim()
-        || $card.find(".poly-price__current .andes-money-amount__fraction").first().text().trim();
+    // 3) Fallback
+    if (mainPrice === 0) {
+      const fractionText = $card.find(".poly-price__current .andes-money-amount__fraction").first().text().trim()
+        || $card.find(".andes-money-amount__fraction").first().text().trim();
       const centsText = $card.find(".andes-money-amount__cents").first().text().trim();
-
       if (fractionText) {
         const intPart = parseFloat(fractionText.replace(/\./g, "").replace(",", "."));
         const centsPart = centsText ? parseFloat(centsText) / 100 : 0;
         const val = intPart + centsPart;
-        if (!isNaN(val) && val > 0) allPrices.push(val);
-      } else {
-        const priceText = $card.find(".poly-price__current").first().text().trim();
-        const priceMatch = priceText.replace(/\./g, "").match(/(\d+),?(\d{0,2})/);
-        if (priceMatch) {
-          const val = parseFloat(priceMatch[1] + "." + (priceMatch[2] || "0"));
-          if (!isNaN(val) && val > 0) allPrices.push(val);
-        }
+        if (!isNaN(val) && val > 0) mainPrice = val;
       }
     }
 
-    // Use the LOWEST price (Pix/discount price is what customers actually pay)
-    const price = allPrices.length > 0 ? Math.min(...allPrices) : 0;
+    // Use Pix price if valid discount (< main price, > 50% of main price)
+    let price = mainPrice;
+    if (pixPrice > 0 && mainPrice > 0 && pixPrice < mainPrice && pixPrice > mainPrice * 0.5) {
+      price = pixPrice;
+    } else if (pixPrice > 0 && mainPrice === 0) {
+      price = pixPrice;
+    }
     if (!price || isNaN(price)) return;
 
     const href = $card.find("a[href]").first().attr("href") || "";

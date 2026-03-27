@@ -189,52 +189,80 @@ async function scrapePage(url: string): Promise<ScrapedItem[]> {
             const centsPart = cntEl?.textContent?.trim() || "0";
             const val = parseFloat(intPart) + parseFloat(centsPart) / 100;
             return isNaN(val) ? 0 : val;
+          };
+
+          // Helper: check if an element is inside an installment/parcel context
+          const isInstallment = (el: Element): boolean => {
+            const parent = el.closest("[class*='installment'], [class*='second-line'], [class*='parcela']");
+            if (parent) return true;
+            // Check surrounding text for "x R$" or "sem juros" patterns
+            const parentText = el.parentElement?.textContent || "";
+            if (/\dx\s*R?\$|sem juros|parcela/i.test(parentText)) return true;
+            return false;
+          };
+
+          // Extract the MAIN price (not installments, not strikethrough)
+          let mainPrice = 0;
+          let pixPrice = 0;
+
+          // 1) Get the primary/current price — first .andes-money-amount that is NOT
+          //    inside a previous/strikethrough block AND NOT inside installments
+          const moneyAmounts = Array.from(card.querySelectorAll(".andes-money-amount"));
+          for (let mi = 0; mi < moneyAmounts.length; mi++) {
+            const ma = moneyAmounts[mi];
+            if (ma.closest(".andes-money-amount--previous")) continue;
+            if (ma.closest("[class*='price--previous']")) continue;
+            if (ma.closest("[class*='original-price']")) continue;
+            if (isInstallment(ma)) continue;
+            const parsed = parseMoneyAmount(ma);
+            if (parsed > 0 && mainPrice === 0) {
+              mainPrice = parsed;
+              break;
+            }
           }
 
-          // Collect ALL prices from this card (excluding strikethrough/previous prices)
-          const allPrices: number[] = [];
-
-          // 1) Parse all .andes-money-amount containers, skip previous/strikethrough
-          const moneyAmounts = card.querySelectorAll(".andes-money-amount");
-          moneyAmounts.forEach((ma) => {
-            if (ma.closest(".andes-money-amount--previous")) return;
-            if (ma.closest("[class*='price--previous']")) return;
-            if (ma.closest("[class*='original-price']")) return;
-            const parsed = parseMoneyAmount(ma);
-            if (parsed > 0) allPrices.push(parsed);
-          });
-
-          // 2) Look for Pix/discount text with embedded price (e.g., "R$ 160,20 no Pix")
-          const discountEls = card.querySelectorAll("[class*='price'], [class*='discount'], [class*='pix'], [class*='Pix']");
-          discountEls.forEach((el) => {
+          // 2) Look for Pix/discount price (e.g., "R$ 160,20" near "Pix" or "OFF" text)
+          const discountEls = Array.from(card.querySelectorAll("[class*='price'], [class*='discount'], [class*='pix'], [class*='Pix']"));
+          for (let di = 0; di < discountEls.length; di++) {
+            const el = discountEls[di];
+            if (isInstallment(el)) continue;
             const txt = el.textContent || "";
             if (/pix|off/i.test(txt)) {
-              const m = txt.replace(/\./g, "").match(/R\$\s*(\d+),(\d{1,2})/);
+              const m = txt.replace(/\./g, "").match(/R\$\s*(\d+),?(\d{0,2})/);
               if (m) {
-                const val = parseFloat(m[1]) + parseFloat(m[2]) / 100;
-                if (!isNaN(val) && val > 0) allPrices.push(val);
+                const val = parseFloat(m[1]) + (m[2] ? parseFloat(m[2]) / 100 : 0);
+                if (!isNaN(val) && val > 0 && val > 50) {
+                  pixPrice = val;
+                  break;
+                }
               }
             }
-          });
+          }
 
-          // 3) Fallback: single fraction/cents (original logic)
-          if (allPrices.length === 0) {
+          // 3) Fallback: try poly-price__current (Cheerio-style)
+          if (mainPrice === 0) {
             const fractionEl = card.querySelector(
-              ".andes-money-amount__fraction, [class*='price-fraction'], [class*='price__fraction']"
+              ".poly-price__current .andes-money-amount__fraction, .andes-money-amount__fraction"
             );
             const centsEl = card.querySelector(
-              ".andes-money-amount__cents, [class*='price-cents'], [class*='price__cents']"
+              ".poly-price__current .andes-money-amount__cents, .andes-money-amount__cents"
             );
-            if (fractionEl?.textContent) {
+            if (fractionEl?.textContent && !isInstallment(fractionEl)) {
               const intPart = fractionEl.textContent.replace(/\./g, "").replace(",", ".").trim();
               const centsPart = centsEl?.textContent?.trim() || "0";
               const val = parseFloat(intPart) + parseFloat(centsPart) / 100;
-              if (!isNaN(val) && val > 0) allPrices.push(val);
+              if (!isNaN(val) && val > 0) mainPrice = val;
             }
           }
 
-          // Use the LOWEST price (Pix/discount price is what customers actually pay)
-          const price = allPrices.length > 0 ? Math.min(...allPrices) : 0;
+          // Use Pix price if available and reasonable, otherwise main price
+          // Pix price must be <= main price (it's a discount) and > 50% of main price
+          let price = mainPrice;
+          if (pixPrice > 0 && mainPrice > 0 && pixPrice < mainPrice && pixPrice > mainPrice * 0.5) {
+            price = pixPrice;
+          } else if (pixPrice > 0 && mainPrice === 0) {
+            price = pixPrice;
+          }
 
           results.push({
             title: titleEl.textContent.trim(),
